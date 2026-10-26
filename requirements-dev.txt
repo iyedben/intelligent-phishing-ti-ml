@@ -1,0 +1,7 @@
+-r requirements.txt
+
+pytest>=8.3
+pytest-cov>=6.0
+httpx>=0.28
+ipykernel>=6.29
+jupyter>=1.1

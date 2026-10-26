@@ -698,11 +698,11 @@ Additional protections should include:
 
 # 22. Development Environment
 
-Recommended environment:
+Required environment:
 
 ```text
 Windows 11
-Python 3.11 or 3.12
+Python 3.12
 VS Code
 Git
 Python virtual environment
@@ -716,47 +716,19 @@ AWS cloud resources are not required for the core implementation.
 
 # 23. Installation
 
-Create the project:
+Use Python 3.12 for this project. In Windows PowerShell, create and activate the virtual environment, then install runtime and development dependencies:
 
-```bash
-mkdir phishing-ti-ml
-cd phishing-ti-ml
+```powershell
+py -3.12 -m venv .venv
 ```
 
-Create the virtual environment:
-
-```bash
-python -m venv .venv
-```
-
-Activate it on Windows:
-
-```bash
-.venv\Scripts\activate
-```
-
-Install the core dependencies:
-
-```bash
-pip install pandas numpy scikit-learn xgboost matplotlib seaborn shap joblib
-```
-
-Install backend dependencies:
-
-```bash
-pip install fastapi uvicorn pydantic python-dotenv requests
-```
-
-Install testing tools:
-
-```bash
-pip install pytest httpx
-```
-
-Save dependencies:
-
-```bash
-pip freeze > requirements.txt
+```powershell
+.\.venv\Scripts\Activate.ps1
+python --version
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
+python scripts/check_environment.py
 ```
 
 ---
