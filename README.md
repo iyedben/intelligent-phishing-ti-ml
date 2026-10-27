@@ -1203,3 +1203,21 @@ python scripts/test_threat_intel.py "https://example.com/"
 ```
 
 The optional OpenPhish Community Feed can be skipped with `--without-openphish`. The manual CLI makes provider lookup requests, so the submitted URL is disclosed to the enabled providers. Provider failures and absent credentials are returned as partial/unavailable evidence.
+
+---
+
+# 33. Phase 8A FastAPI Foundation
+
+The FastAPI application factory is `src.api.app:create_app`. Start the local development server from the repository root:
+
+```powershell
+python -m uvicorn src.api.app:create_app --factory --reload
+```
+
+The process health endpoint is `GET http://127.0.0.1:8000/health` and returns:
+
+```json
+{"status":"ok"}
+```
+
+`/health` is intentionally unversioned so process monitoring can use a stable liveness path. Future application API routes are intended to live under `/api/v1/`. **Phase 8A implements no `/analyze` endpoint and cannot analyze URLs through FastAPI yet.** This foundation does not initialize the model, SHAP, or Threat Intelligence providers.
