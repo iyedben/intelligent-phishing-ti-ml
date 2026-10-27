@@ -1,0 +1,63 @@
+{
+  "experiment_name": "url-only-baseline-comparison",
+  "dataset": {
+    "path": "data/raw/PhiUSIIL_Phishing_URL_Dataset.csv",
+    "uci_id": 967,
+    "sha256": "a236549cd369cd80bd478ff8e1779cbf44c58d5c3f79f7a51a1adbed7d06d1c6"
+  },
+  "feature_schema_version": "1.0.0",
+  "feature_source": "src/features/extract_url_features",
+  "model_features": "numeric fields selected from src/features/schema.py; raw Domain excluded",
+  "source_label_mapping": {
+    "0": "phishing",
+    "1": "legitimate"
+  },
+  "model_label_mapping": {
+    "1": "phishing (positive class)",
+    "0": "legitimate"
+  },
+  "random_state": 2026,
+  "split": {
+    "method": "20-fold deterministic group allocation; shuffle exact URL groups within each class with NumPy default_rng",
+    "train_folds": "0-13",
+    "validation_folds": "14-16",
+    "test_folds": "17-19",
+    "target_proportions": {
+      "train": 0.70,
+      "validation": 0.15,
+      "test": 0.15
+    }
+  },
+  "models": {
+    "Logistic Regression": {
+      "pipeline": ["StandardScaler", "LogisticRegression"],
+      "max_iter": 2000,
+      "class_weight": null
+    },
+    "Random Forest": {
+      "n_estimators": 200,
+      "max_features": "sqrt",
+      "min_samples_leaf": 1,
+      "class_weight": null,
+      "n_jobs": 1
+    },
+    "XGBoost": {
+      "n_estimators": 200,
+      "max_depth": 4,
+      "learning_rate": 0.05,
+      "subsample": 0.9,
+      "colsample_bytree": 0.9,
+      "reg_lambda": 1.0,
+      "objective": "binary:logistic",
+      "eval_metric": "logloss",
+      "tree_method": "hist",
+      "n_jobs": 1
+    }
+  },
+  "thresholds_for_validation_analysis": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+  "cross_validation": {
+    "splitter": "5-fold deterministic group allocation; shuffle exact URL groups within each class with NumPy default_rng",
+    "n_splits": 5,
+    "scope": "training partition only"
+  }
+}

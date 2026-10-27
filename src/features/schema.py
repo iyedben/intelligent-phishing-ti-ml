@@ -101,3 +101,4 @@ FEATURE_SCHEMA: tuple[FeatureSpec, ...] = (
 )
 
 FEATURE_NAMES: tuple[str, ...] = tuple(feature.name for feature in FEATURE_SCHEMA)
+FEATURE_SCHEMA_VERSION = "1.0.0"
