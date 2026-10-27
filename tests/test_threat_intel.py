@@ -10,6 +10,7 @@ import pytest
 import requests
 
 from src.threat_intel.models import LookupStatus
+from src.threat_intel.config import get_setting
 from src.threat_intel.openphish import OpenPhishProvider
 from src.threat_intel.phishtank import PhishTankProvider
 from src.threat_intel.urlhaus import URLhausProvider
@@ -179,3 +180,28 @@ def test_invalid_url_is_rejected_without_request() -> None:
     assert result.lookup_status == LookupStatus.INVALID_INPUT
     assert result.error == "url_empty_or_surrounding_whitespace"
     session.post.assert_not_called()
+
+
+def test_dotenv_config_loads_values_and_preserves_explicit_environment(tmp_path, monkeypatch) -> None:
+    dotenv_path = tmp_path / ".env"
+    dotenv_path.write_text(
+        "URLHAUS_AUTH_KEY=temporary-test-key\nPHISHTANK_APP_KEY=temporary-phishtank-key\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("URLHAUS_AUTH_KEY", raising=False)
+    monkeypatch.setattr("src.threat_intel.config.DOTENV_PATH", dotenv_path)
+
+    # An explicit provider constructor still takes precedence over dotenv.
+    session = Mock()
+    provider_from_env = URLhausProvider(session=session)
+    assert provider_from_env.auth_key == "temporary-test-key"
+    assert get_setting("PHISHTANK_APP_KEY") == "temporary-phishtank-key"
+
+
+def test_process_environment_overrides_dotenv(tmp_path, monkeypatch) -> None:
+    dotenv_path = tmp_path / ".env"
+    dotenv_path.write_text("URLHAUS_AUTH_KEY=dotenv-test-value\n", encoding="utf-8")
+    monkeypatch.setattr("src.threat_intel.config.DOTENV_PATH", dotenv_path)
+    monkeypatch.setenv("URLHAUS_AUTH_KEY", "shell-test-value")
+    provider = URLhausProvider(session=Mock())
+    assert provider.auth_key == "shell-test-value"

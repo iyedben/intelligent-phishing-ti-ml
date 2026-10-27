@@ -38,14 +38,14 @@ The network requests use fixed HTTPS provider endpoints and `allow_redirects=Fal
 
 ## Credentials and security
 
-Set keys in the process environment. `.env.example` is a placeholder template; the current project does not load `.env` files automatically, so a shell, IDE launch configuration, or future configuration layer must export the values. For example, in PowerShell:
+At provider initialization, the configuration helper loads the repository-root `.env` with `python-dotenv` and `override=False`. Explicit process environment values therefore take precedence. `.env.example` contains placeholders only. For example, in PowerShell:
 
 ```text
 PHISHTANK_APP_KEY=
 URLHAUS_AUTH_KEY=
 ```
 
-`.env.example` contains placeholders only. `.env` and `.env.*` are ignored by Git (with `.env.example` explicitly retained). PhishTank's key is optional; URLhaus requires its Auth-Key. Credentials are never embedded in returned details, error messages, or logs. Requests use finite 8-second timeouts. Response parsing is schema-aware and does not execute provider content. Payload metadata is projected to a small set of fields and is not downloaded.
+`.env.example` contains placeholders only. `.env` and `.env.*` are ignored by Git (with `.env.example` explicitly retained). `python-dotenv` is a direct runtime dependency because local development now loads those settings without custom shell setup; `requirements-dev.txt` inherits runtime dependencies through `-r requirements.txt`. PhishTank's key is optional; URLhaus requires its Auth-Key. Credentials are never embedded in returned details, error messages, or logs. Requests use finite 8-second timeouts. Response parsing is schema-aware and does not execute provider content. Payload metadata is projected to a small set of fields and is not downloaded.
 
 ## Failure behavior and current verification
 

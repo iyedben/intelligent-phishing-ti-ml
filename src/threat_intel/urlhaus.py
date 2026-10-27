@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from time import monotonic
 from typing import Any
 
@@ -19,6 +18,7 @@ from .base import (
     utc_now,
     validate_lookup_url,
 )
+from .config import get_setting
 from .models import EvidenceLevel, LookupStatus, ThreatIntelResult
 
 
@@ -39,7 +39,7 @@ class URLhausProvider(ThreatIntelProvider):
         timeout_seconds: float = timeout_seconds,
         cache: MemoryTTLCache | None = None,
     ) -> None:
-        self.auth_key = auth_key if auth_key is not None else os.getenv("URLHAUS_AUTH_KEY", "")
+        self.auth_key = auth_key if auth_key is not None else get_setting("URLHAUS_AUTH_KEY")
         self.session = session or requests.Session()
         self.timeout_seconds = timeout_seconds
         self.cache = cache

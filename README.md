@@ -1194,7 +1194,7 @@ The project therefore moves beyond simple phishing classification and demonstrat
 
 The modular provider and evidence-correlation layer is documented in [Threat Intelligence](docs/THREAT_INTELLIGENCE.md) and [Correlation Rules](docs/CORRELATION.md). It distinguishes the model's phishing prediction from PhishTank phishing records, URLhaus malware-distribution intelligence, and optional OpenPhish Community Feed listings. No submitted destination is opened.
 
-Set provider credentials in the process environment. `PHISHTANK_APP_KEY` is optional; `URLHAUS_AUTH_KEY` is required for URLhaus. `.env.example` has placeholders, but the current code does not automatically load `.env` files.
+The provider layer loads repository-root `.env` values with `python-dotenv` during provider initialization; existing process environment values take precedence. `PHISHTANK_APP_KEY` is optional; `URLHAUS_AUTH_KEY` is required for URLhaus. `.env.example` has empty placeholders only.
 
 ```powershell
 $env:PHISHTANK_APP_KEY = "your-optional-phishtank-key"
