@@ -197,6 +197,12 @@ models/*.pkl
 *.sqlite3
 *.db
 
+# Locally acquired datasets (keep directories available in a fresh clone)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
 # Abstra
 #   Abstra is an AI-powered process automation framework.
 #   Ignore directories containing user credentials, local state, and settings.
