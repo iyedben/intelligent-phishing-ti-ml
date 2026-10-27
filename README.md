@@ -1206,7 +1206,7 @@ The optional OpenPhish Community Feed can be skipped with `--without-openphish`.
 
 ---
 
-# 33. Phase 8A–8B FastAPI API
+# 33. Phase 8A–8C FastAPI API and frontend
 
 The FastAPI application factory is `src.api.app:create_app`. Start the local development server from the repository root:
 
@@ -1230,4 +1230,18 @@ The response separates `ml` (phishing probability, prediction, threshold, positi
 
 Interactive API documentation is available at `http://127.0.0.1:8000/docs`; the OpenAPI schema describes the request, response, and validation errors.
 
-The API uses the existing URL-only extractor, saved Random Forest candidate, SHAP explainer, TI providers, and correlation engine through an application service. The model/service is loaded lazily on the first `/api/v1/analyze` request and reused for that app process. The API never opens, downloads, renders, or executes the submitted destination. The only external requests are to the configured TI provider endpoints; submitting a URL discloses it to those providers. Phase 8B does not add a frontend, database, authentication, or deployment configuration.
+The API uses the existing URL-only extractor, saved Random Forest candidate, SHAP explainer, TI providers, and correlation engine through an application service. The model/service is loaded lazily on the first `/api/v1/analyze` request and reused for that app process. The API never opens, downloads, renders, or executes the submitted destination. The only external requests are to the configured TI provider endpoints; submitting a URL discloses it to those providers.
+
+## Frontend
+
+Phase 8C adds a lightweight dashboard built with local HTML5, CSS3, and vanilla JavaScript. The browser sends the entered URL to this FastAPI application's `POST /api/v1/analyze` endpoint and renders the returned ML prediction, SHAP contributions, provider results, and correlation assessment. Analysis logic stays in the backend. The page checks `GET /health` once when it loads and reports whether the API is online.
+
+Start the complete local application from the repository root:
+
+```powershell
+python -m uvicorn src.api.app:create_app --factory
+```
+
+Open `http://127.0.0.1:8000/` for the dashboard. The API documentation remains at `http://127.0.0.1:8000/docs`, and the health endpoint remains at `http://127.0.0.1:8000/health`.
+
+The dashboard distinguishes model evidence from each provider result. A provider no-match means the URL was not found in that provider's current data and is not proof of safety; unavailable providers remain visibly unavailable. URLhaus malware-distribution results are displayed as malware intelligence, not automatically relabeled as phishing. The frontend does not open the submitted URL, load its content, or send it to third-party services directly. The backend's configured threat-intelligence integrations receive the URL for their lookups. This is an academic research interface, not a production deployment or guarantee of protection.

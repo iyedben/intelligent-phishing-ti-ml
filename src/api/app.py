@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from threading import Lock
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.api.routes.analyze import router as analyze_router
 from src.api.routes.health import router as health_router
@@ -36,6 +39,18 @@ def create_app(
             "threat-intelligence evidence. Submitted destinations are not fetched."
         ),
     )
+    frontend_dir = Path(__file__).resolve().parents[2] / "frontend"
+    application.mount(
+        "/static",
+        StaticFiles(directory=frontend_dir, check_dir=True),
+        name="static",
+    )
+
+    @application.get("/", include_in_schema=False)
+    def frontend_index() -> FileResponse:
+        """Serve the local dashboard without intercepting API or docs routes."""
+        return FileResponse(frontend_dir / "index.html", media_type="text/html")
+
     application.include_router(health_router)
     application.include_router(analyze_router, prefix="/api/v1")
     application.state.analysis_service = analysis_service
