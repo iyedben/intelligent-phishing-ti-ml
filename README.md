@@ -754,6 +754,35 @@ intelligent-phishing-ti-ml/
 
 The current Random Forest candidate is expected at `models/url_only_random_forest_seed2026_candidate.joblib`. Model artifacts are ignored by Git, so a fresh checkout needs the validated artifact supplied separately before model-backed analysis can run.
 
+## Obtaining the Random Forest research candidate
+
+The model is excluded from Git and must be downloaded separately. The expected GitHub Release asset is `url_only_random_forest_seed2026_candidate.joblib`; the release has **not yet been published**. Once available, download that asset from the project release page for `<release-tag>` and save it to:
+
+`models/url_only_random_forest_seed2026_candidate.joblib`
+
+Verify the SHA-256 in PowerShell before running the application:
+
+```powershell
+$model = ".\models\url_only_random_forest_seed2026_candidate.joblib"
+if (!(Test-Path -LiteralPath $model -PathType Leaf)) {
+    throw "Model artifact is missing. Download the asset from the project GitHub Release."
+}
+$expected = "ba205afaa56fb532bd4ceea566eb441d6494c39e0a811e976732e76550b7debc"
+$actual = (Get-FileHash -LiteralPath $model -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($actual -ne $expected) {
+    throw "Model SHA-256 mismatch. Do not load this artifact; verify the download and release checksum."
+}
+```
+
+The release URL and tag will be added here after publication. If the file is missing, obtain the named asset from that release. If its hash differs, do not load it; re-check the download and the checksum published with the release. After verification, install dependencies and start the local application:
+
+```powershell
+python -m pip install -r requirements.txt
+python -m uvicorn src.api.app:create_app --factory
+```
+
+This `.joblib` file is a research candidate. Load it only from a trusted release source; checksum verification detects changes but does not establish publisher identity.
+
 ---
 
 # 25. Development Methodology

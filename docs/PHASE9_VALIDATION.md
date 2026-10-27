@@ -96,3 +96,14 @@ Submitting a URL sends it to configured external TI sources; users should consid
 ## 14. Final Phase 9 status
 
 **Application hardening and local validation: complete for the audited scope.** The API input-size gap was closed, model-backed end-to-end and SSRF-boundary tests were added, documentation was corrected, and the final test/quality command results are recorded in the completion report. Live provider availability and automated browser interaction remain unverified in this phase.
+
+## Model artifact GitHub Release preparation checklist
+
+The release has not been published. These steps remain pending:
+
+- [ ] Reconfirm the exact local artifact path, file size, and SHA-256 immediately before release.
+- [ ] Review model provenance and obtain human review of applicable license, dataset attribution, and redistribution terms; permission has not been confirmed by this report.
+- [ ] Create the approved GitHub Release and upload only `url_only_random_forest_seed2026_candidate.joblib` as the release asset.
+- [ ] Download the uploaded asset and verify its SHA-256 against the release notes and README before announcing the release.
+- [ ] Test download, checksum verification, dependency setup, and model loading from a clean checkout without the local ignored artifact.
+- [ ] After the release exists, replace the README `<release-tag>` placeholder with the actual tag and verified asset URL.
