@@ -1187,3 +1187,19 @@ CRITICAL
 The project therefore moves beyond simple phishing classification and demonstrates an integrated cybersecurity workflow combining:
 
 **Machine Learning + Explainable AI + Threat Intelligence + Risk Assessment + Web Application Development.**
+
+---
+
+# 32. Phase 7 Threat Intelligence CLI
+
+The modular provider and evidence-correlation layer is documented in [Threat Intelligence](docs/THREAT_INTELLIGENCE.md) and [Correlation Rules](docs/CORRELATION.md). It distinguishes the model's phishing prediction from PhishTank phishing records, URLhaus malware-distribution intelligence, and optional OpenPhish Community Feed listings. No submitted destination is opened.
+
+Set provider credentials in the process environment. `PHISHTANK_APP_KEY` is optional; `URLHAUS_AUTH_KEY` is required for URLhaus. `.env.example` has placeholders, but the current code does not automatically load `.env` files.
+
+```powershell
+$env:PHISHTANK_APP_KEY = "your-optional-phishtank-key"
+$env:URLHAUS_AUTH_KEY = "your-urlhaus-auth-key"
+python scripts/test_threat_intel.py "https://example.com/"
+```
+
+The optional OpenPhish Community Feed can be skipped with `--without-openphish`. The manual CLI makes provider lookup requests, so the submitted URL is disclosed to the enabled providers. Provider failures and absent credentials are returned as partial/unavailable evidence.
