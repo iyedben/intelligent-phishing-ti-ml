@@ -1206,7 +1206,7 @@ The optional OpenPhish Community Feed can be skipped with `--without-openphish`.
 
 ---
 
-# 33. Phase 8A FastAPI Foundation
+# 33. Phase 8A–8B FastAPI API
 
 The FastAPI application factory is `src.api.app:create_app`. Start the local development server from the repository root:
 
@@ -1220,4 +1220,14 @@ The process health endpoint is `GET http://127.0.0.1:8000/health` and returns:
 {"status":"ok"}
 ```
 
-`/health` is intentionally unversioned so process monitoring can use a stable liveness path. Future application API routes are intended to live under `/api/v1/`. **Phase 8A implements no `/analyze` endpoint and cannot analyze URLs through FastAPI yet.** This foundation does not initialize the model, SHAP, or Threat Intelligence providers.
+`/health` is intentionally unversioned for stable process monitoring. Phase 8B adds `POST http://127.0.0.1:8000/api/v1/analyze`:
+
+```json
+{"url":"https://example.com"}
+```
+
+The response separates `ml` (phishing probability, prediction, threshold, positive class), `explanation` (the strongest five existing SHAP contributions), `threat_intelligence` (one normalized result per provider), and `correlation` (the existing evidence rules). TI provider failures remain in the response as unavailable/error evidence when the local model succeeds. A no-match result means only that the queried source returned no record; it is not proof that the URL is safe.
+
+Interactive API documentation is available at `http://127.0.0.1:8000/docs`; the OpenAPI schema describes the request, response, and validation errors.
+
+The API uses the existing URL-only extractor, saved Random Forest candidate, SHAP explainer, TI providers, and correlation engine through an application service. The model/service is loaded lazily on the first `/api/v1/analyze` request and reused for that app process. The API never opens, downloads, renders, or executes the submitted destination. The only external requests are to the configured TI provider endpoints; submitting a URL discloses it to those providers. Phase 8B does not add a frontend, database, authentication, or deployment configuration.
