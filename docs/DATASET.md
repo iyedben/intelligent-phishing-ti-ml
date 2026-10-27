@@ -36,19 +36,17 @@ All data-quality figures below were computed from the local CSV using pandas; th
 
 UCI's variable metadata endpoint assigns roles and broad types. For this dataset, its per-variable `description` fields are empty; the page says the collection combines URL and webpage source-code features and says `FILENAME` can be ignored. The categories below use the published column names and this dataset-level description. The split is a methodological assessment, not a detailed definition supplied by UCI for every column.
 
-### A. URL-only / pre-fetch (conservative candidate set)
+### URL-only extraction policy after direct source validation
 
-These 18 fields can reasonably be computed by parsing or inspecting the submitted URL string, without DNS, HTTP, downloads, JavaScript execution, or rendering:
+The initial EDA treated several named URL counts as likely pre-fetch candidates. Phase 4 cross-checked these against the actual source URLs and narrowed the production extractor policy. The nine implemented deterministic values are `URLLength`, `Domain`, `DomainLength`, `IsDomainIP`, `NoOfDegitsInURL`, `NoOfEqualsInURL`, `NoOfQMarkInURL`, `NoOfAmpersandInURL`, and `IsHTTPS`. Their exact project definitions and sample compatibility results are in [FEATURE_ENGINEERING.md](FEATURE_ENGINEERING.md). They require no DNS, HTTP, downloads, JavaScript, or rendering.
 
-`URL`, `URLLength`, `Domain`, `DomainLength`, `IsDomainIP`, `HasObfuscation`, `NoOfObfuscatedChar`, `ObfuscationRatio`, `NoOfLettersInURL`, `LetterRatioInURL`, `NoOfDegitsInURL`, `DegitRatioInURL`, `NoOfEqualsInURL`, `NoOfQMarkInURL`, `NoOfAmpersandInURL`, `NoOfOtherSpecialCharsInURL`, `SpacialCharRatioInURL`, `IsHTTPS`.
+The extractor's definitions—not undocumented/precomputed UCI values—must be used consistently for later training, evaluation, and inference. In particular, `URLLength` disagrees with the stored UCI feature in most of the validation sample, while the exact UCI counting behavior for some character features is unclear. `Domain` is the raw parsed authority and can include userinfo or a port; it is high-cardinality and should not automatically be treated as a predictor. `IsHTTPS` checks only the scheme and does not verify TLS.
 
-This is an EDA deployment assessment, not a final feature selection. `IsHTTPS` indicates the URL scheme only; it does not verify TLS. `Domain` and `IsDomainIP` mean local host parsing/literal recognition, never DNS resolution. Counts and ratios overlap and need consistent, documented formulas if later reimplemented.
+### Uncertain URL-derived fields
 
-### Domain/TLD and derived candidates requiring confirmation
+`TLD`, `TLDLength`, `NoOfSubDomain`, `TLDLegitimateProb`, `URLSimilarityIndex`, `CharContinuationRate`, `URLCharProb`, `HasObfuscation`, `NoOfObfuscatedChar`, `ObfuscationRatio`, `NoOfLettersInURL`, `LetterRatioInURL`, `DegitRatioInURL`, `NoOfOtherSpecialCharsInURL`, and `SpacialCharRatioInURL` are not implemented. UCI's field-level descriptions/formulas are blank; suffix/reference data are unspecified; and direct values do not always correspond to transparent calculations on the stored URL. The observed `TLD` column includes 625 rows with numeric-only values or colon/port-like values (126 distinct values). Details and reasons are in [FEATURE_ENGINEERING.md](FEATURE_ENGINEERING.md).
 
-`TLD`, `TLDLength`, and `NoOfSubDomain` depend on suffix/public-suffix conventions that UCI does not document. The observed `TLD` column includes 625 rows with numeric-only values or colon/port-like values (126 distinct values), so validate extraction semantics before use. `TLDLegitimateProb` needs an identified reference population and risks encoding source/label priors. `URLSimilarityIndex`, `CharContinuationRate`, and `URLCharProb` have unclear formulas/reference data. These seven fields are marked **UNCERTAIN** for URL-only reproduction pending authoritative provenance; they are not included in the conservative `URL_ONLY_FEATURES` list.
-
-UCI's dataset summary calls `CharContinuationRate`, `URLTitleMatchScore`, `URLCharProb`, and `TLDLegitimateProb` derived from existing features but does not publish their formulas in the variable table. The UCI API's field-level description values are empty for this dataset.
+`URL` is the input string, not returned as an extractor feature. `FILENAME` is metadata/identifier; `label` is the target. The UCI summary says some fields are derived but does not publish their formulas. `URLTitleMatchScore` is derived but requires a page title and remains post-fetch.
 
 ### B. Webpage/content-derived / post-fetch
 

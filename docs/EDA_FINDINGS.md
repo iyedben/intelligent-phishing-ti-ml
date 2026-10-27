@@ -22,17 +22,15 @@ This is a moderately imbalanced but not extreme sample distribution. It is not e
 
 ## 3. Important feature groups and availability
 
-### Conservative URL-only candidates
+### URL-only candidates refined in Phase 4
 
-The notebook defines `URL_ONLY_FEATURES` as:
+Phase 3's names-based candidate list was provisional. Direct comparison of URL-derived calculations against the stored PhiUSIIL fields found systematic and edge-case mismatches. The Phase 4 extractor now includes nine explicitly defined string/parser values: `URLLength`, `Domain`, `DomainLength`, `IsDomainIP`, `NoOfDegitsInURL`, `NoOfEqualsInURL`, `NoOfQMarkInURL`, `NoOfAmpersandInURL`, and `IsHTTPS`. Their definitions and matching rates are documented in [`FEATURE_ENGINEERING.md`](FEATURE_ENGINEERING.md). The extractor uses the same deterministic values for later training and inference; it does not assume the stored UCI values are equivalent where validation is unresolved.
 
-`URL`, `URLLength`, `Domain`, `DomainLength`, `IsDomainIP`, `HasObfuscation`, `NoOfObfuscatedChar`, `ObfuscationRatio`, `NoOfLettersInURL`, `LetterRatioInURL`, `NoOfDegitsInURL`, `DegitRatioInURL`, `NoOfEqualsInURL`, `NoOfQMarkInURL`, `NoOfAmpersandInURL`, `NoOfOtherSpecialCharsInURL`, `SpacialCharRatioInURL`, `IsHTTPS`.
-
-Availability means string parsing only. It excludes DNS, requests, content downloads, JavaScript, and rendering. `Domain`, `DomainLength`, and `IsDomainIP` are also called out as domain/parser fields. `IsHTTPS` describes the scheme in the supplied URL, not whether TLS succeeds.
+Availability means string parsing only. It excludes DNS, requests, content downloads, JavaScript, and rendering. `Domain` is the raw authority (possibly userinfo/port) and a high-cardinality identifier; `IsHTTPS` describes the supplied scheme, not whether TLS succeeds.
 
 ### Uncertain URL-derived/suffix candidates
 
-`TLD`, `TLDLength`, `NoOfSubDomain`, `TLDLegitimateProb`, `URLSimilarityIndex`, `CharContinuationRate`, and `URLCharProb` are marked **UNCERTAIN**. UCI leaves the per-variable descriptions empty, and these fields depend on undocumented suffix rules, derived formulas, or reference data. In particular, a probability or similarity feature needs its calculation corpus and label provenance documented before it can be trusted as deployment-ready.
+The Phase 4 policy additionally marks `HasObfuscation`, `NoOfObfuscatedChar`, `ObfuscationRatio`, `NoOfLettersInURL`, `LetterRatioInURL`, `DegitRatioInURL`, `NoOfOtherSpecialCharsInURL`, and `SpacialCharRatioInURL` as **UNCERTAIN**. Although their names suggest string calculations, UCI's formulas/counting scope are blank and sample comparisons do not establish compatible definitions. The full uncertain list and validation output are in [`FEATURE_ENGINEERING.md`](FEATURE_ENGINEERING.md).
 
 ### Post-fetch fields
 
@@ -46,7 +44,7 @@ These require page HTML/content/resources, a robots response, or network redirec
 
 For numeric fields, the notebook reports a rank-based univariate AUC defined as `P(phishing value > legitimate value)`. A score near 0 or 1 indicates strong separation in this dataset; it does **not** establish model performance, causal importance, target-independent provenance, or deployment feasibility.
 
-- URL-only string-derived examples: `NoOfOtherSpecialCharsInURL` AUC **0.8238**; `SpacialCharRatioInURL` **0.8076**; `NoOfLettersInURL` **0.7422**; `URLLength` **0.7324**; `NoOfDegitsInURL` **0.7280**; `DegitRatioInURL` **0.7261**; `LetterRatioInURL` **0.7151**. These show this dataset contains useful univariate URL-text differences, subject to redundancy and external validation.
+- Strong univariate differences among fields whose names suggest URL-text measurements included `NoOfOtherSpecialCharsInURL` AUC **0.8238**, `SpacialCharRatioInURL` **0.8076**, `NoOfLettersInURL` **0.7422**, `URLLength` **0.7324**, `NoOfDegitsInURL` **0.7280**, `DegitRatioInURL` **0.7261**, and `LetterRatioInURL` **0.7151**. Phase 4 found that several of these stored values are not safely reproducible from their names alone; these AUCs describe UCI's stored columns, not confirmed production-extractor values.
 - `IsHTTPS` AUC **0.2461** under the stated direction, meaning legitimate rows more often have value 1 in this sample; it does not validate HTTPS security.
 - Strongest numeric separations included `URLSimilarityIndex` (**0.0039**, phishing values much lower), `LineOfCode` (**0.0097**), `NoOfExternalRef` (**0.0120**), `NoOfImage` (**0.0204**), `NoOfSelfRef` (**0.0275**), and `NoOfJS` (**0.0292**). Most are post-fetch; the similarity score is formula/provenance-uncertain. Their extreme separation warrants leakage/source-provenance review.
 
