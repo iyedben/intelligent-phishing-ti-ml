@@ -36,13 +36,19 @@ All data-quality figures below were computed from the local CSV using pandas; th
 
 UCI's variable metadata endpoint assigns roles and broad types. For this dataset, its per-variable `description` fields are empty; the page says the collection combines URL and webpage source-code features and says `FILENAME` can be ignored. The categories below use the published column names and this dataset-level description. The split is a methodological assessment, not a detailed definition supplied by UCI for every column.
 
-### A. URL-only / pre-fetch
+### A. URL-only / pre-fetch (conservative candidate set)
 
-These can be calculated from the submitted URL string without requesting the destination page. Probability/similarity statistics still require a defined, fixed reference corpus or lookup; they are not necessarily derivable from the string alone.
+These 18 fields can reasonably be computed by parsing or inspecting the submitted URL string, without DNS, HTTP, downloads, JavaScript execution, or rendering:
 
-`URL`, `URLLength`, `Domain`, `DomainLength`, `IsDomainIP`, `TLD`, `URLSimilarityIndex`, `CharContinuationRate`, `URLCharProb`, `TLDLength`, `NoOfSubDomain`, `HasObfuscation`, `NoOfObfuscatedChar`, `ObfuscationRatio`, `NoOfLettersInURL`, `LetterRatioInURL`, `NoOfDegitsInURL`, `DegitRatioInURL`, `NoOfEqualsInURL`, `NoOfQMarkInURL`, `NoOfAmpersandInURL`, `NoOfOtherSpecialCharsInURL`, `SpacialCharRatioInURL`, `IsHTTPS`.
+`URL`, `URLLength`, `Domain`, `DomainLength`, `IsDomainIP`, `HasObfuscation`, `NoOfObfuscatedChar`, `ObfuscationRatio`, `NoOfLettersInURL`, `LetterRatioInURL`, `NoOfDegitsInURL`, `DegitRatioInURL`, `NoOfEqualsInURL`, `NoOfQMarkInURL`, `NoOfAmpersandInURL`, `NoOfOtherSpecialCharsInURL`, `SpacialCharRatioInURL`, `IsHTTPS`.
 
-`TLDLegitimateProb` is based on TLD reputation/probability information rather than just the URL's characters. Treat it as an auxiliary, versioned lookup or a derived statistic that needs provenance; it is not a free URL parser output. UCI's summary calls `CharContinuationRate`, `URLTitleMatchScore`, `URLCharProb`, and `TLDLegitimateProb` derived from existing features but does not publish their formulas in the variable table.
+This is an EDA deployment assessment, not a final feature selection. `IsHTTPS` indicates the URL scheme only; it does not verify TLS. `Domain` and `IsDomainIP` mean local host parsing/literal recognition, never DNS resolution. Counts and ratios overlap and need consistent, documented formulas if later reimplemented.
+
+### Domain/TLD and derived candidates requiring confirmation
+
+`TLD`, `TLDLength`, and `NoOfSubDomain` depend on suffix/public-suffix conventions that UCI does not document. The observed `TLD` column includes 625 rows with numeric-only values or colon/port-like values (126 distinct values), so validate extraction semantics before use. `TLDLegitimateProb` needs an identified reference population and risks encoding source/label priors. `URLSimilarityIndex`, `CharContinuationRate`, and `URLCharProb` have unclear formulas/reference data. These seven fields are marked **UNCERTAIN** for URL-only reproduction pending authoritative provenance; they are not included in the conservative `URL_ONLY_FEATURES` list.
+
+UCI's dataset summary calls `CharContinuationRate`, `URLTitleMatchScore`, `URLCharProb`, and `TLDLegitimateProb` derived from existing features but does not publish their formulas in the variable table. The UCI API's field-level description values are empty for this dataset.
 
 ### B. Webpage/content-derived / post-fetch
 
@@ -50,7 +56,7 @@ These depend on retrieving or parsing the destination response, its HTML, page t
 
 `LineOfCode`, `LargestLineLength`, `HasTitle`, `Title`, `DomainTitleMatchScore`, `URLTitleMatchScore`, `HasFavicon`, `Robots`, `IsResponsive`, `NoOfURLRedirect`, `NoOfSelfRedirect`, `HasDescription`, `NoOfPopup`, `NoOfiFrame`, `HasExternalFormSubmit`, `HasSocialNet`, `HasSubmitButton`, `HasHiddenFields`, `HasPasswordField`, `Bank`, `Pay`, `Crypto`, `HasCopyrightInfo`, `NoOfImage`, `NoOfCSS`, `NoOfJS`, `NoOfSelfRef`, `NoOfEmptyRef`, `NoOfExternalRef`.
 
-This is a conservative operational grouping inferred from names and UCI's dataset-level statement that source-code features are included. For example, `Robots` and redirect counts imply network/page behavior, while title, forms, and resource counts require response content. UCI provides no detailed variable definitions for these fields in its variable descriptions. The final application must not visit an arbitrary submitted URL simply to obtain these training-time features. A URL-only application would need an explicitly scoped URL-only feature set and a separate evaluation; no such feature selection is performed in this phase.
+This is a conservative operational grouping inferred from names and UCI's dataset-level statement that source-code features are included. For example, `Robots` and redirect counts imply network/page behavior, while title, forms, and resource counts require response content. `Bank`, `Pay`, and `Crypto` appear content-derived by name, but UCI does not define their exact construction. The final application must not visit an arbitrary submitted URL simply to obtain these training-time features. The EDA notebook provides a separate explicit URL-only candidate list.
 
 ### Metadata / identifier field
 
@@ -134,7 +140,7 @@ No columns have been removed or transformed. These are candidates for future met
 - **Duplicated information:** URL length, character counts, ratios, obfuscation counts, domain/TLD fields, and URL similarity/probability scores overlap by construction or may be mathematically derived from one another. `URL` and `Domain` repeat exactly across rows; there are 425 duplicate URL occurrences. These relationships can weight evidence multiple times and require analysis, but raw data remains untouched.
 - **Dataset-source leakage:** the authors say the data combines URLs and corresponding webpages and describes most analyzed URLs as latest; source/time collection details and exact sampling procedure are not fully specified in UCI's variable table. Source-specific templates, acquisition artifacts, or ordering can become shortcuts. `FILENAME` warrants particular scrutiny.
 - **Unrealistic deployment assumptions:** page title, HTML, forms, redirects, resource references, and other post-fetch properties require network access and introduce arbitrary-URL retrieval risks. A final URL-only service cannot claim performance using these fields unless a separately designed and authorized safe retrieval component exists. TLD probability and similarity values also need documented, reproducible reference data.
-- **Repeated samples:** identical URLs across rows can cross evaluation partitions if a future split is row-random. This phase reports, but does not deduplicate or split, the source data.
+- **Repeated samples:** 425 repeated URL occurrences were observed across 425 repeated URL values; none of these repeated-URL groups had conflicting labels. Identical URLs can still cross evaluation partitions if a future split is row-random. The raw data is not deduplicated or split.
 
 ## Inspection script
 
