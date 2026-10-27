@@ -28,7 +28,7 @@ This project aims to develop a hybrid phishing-analysis platform that combines s
 
 The machine-learning component predicts whether a URL exhibits characteristics associated with phishing. The Explainable AI component explains the factors contributing to the model's decision. The Threat Intelligence component correlates the analyzed URL against external security sources such as PhishTank, URLhaus, and OpenPhish.
 
-A risk-correlation engine combines these sources of evidence into a transparent risk score and classification. The results are exposed through a RESTful FastAPI backend and a separate HTML/CSS/JavaScript frontend.
+The backend keeps the model output, explainability results, provider evidence, and correlation assessment separate. The current API does not calculate a separate numeric risk score. Results are exposed through a FastAPI backend and a separate HTML/CSS/JavaScript frontend.
 
 ---
 
@@ -220,7 +220,7 @@ The application follows a client-server architecture.
 
 ## Frontend
 
-The frontend will use:
+The frontend uses:
 
 - HTML5
 - CSS3
@@ -232,10 +232,10 @@ Responsibilities:
 - Display analysis status
 - Display ML prediction
 - Display probability
-- Display risk score
+- Display the backend correlation assessment
 - Display Threat Intelligence results
 - Display XAI explanations
-- Display final risk classification
+- Display separate model and provider evidence
 
 ## Backend
 
@@ -558,9 +558,9 @@ This allows the project to investigate whether TI improves contextualization of 
 
 ---
 
-# 18. Risk Scoring
+# 18. Proposed Risk Scoring (Not Implemented)
 
-A transparent risk score from 0 to 100 will be implemented.
+A transparent risk score from 0 to 100 was proposed for future work. It is not implemented in the current service or API.
 
 An initial proposed design is:
 
@@ -583,24 +583,24 @@ Initial risk categories:
 
 These thresholds are project-defined and will be documented as such. They are not presented as universal cybersecurity standards.
 
-The scoring mechanism may be refined after experimental evaluation.
+Any future scoring mechanism requires separate evaluation and documentation. Current correlation uses the deterministic qualitative rules documented in `docs/CORRELATION.md`.
 
 ---
 
-# 19. API Design
+# 19. Current API
 
-The FastAPI backend will expose REST endpoints.
+The FastAPI backend exposes the following endpoints:
 
 ## Health Check
 
 ```http
-GET /api/health
+GET /health
 ```
 
 ## URL Analysis
 
 ```http
-POST /api/analyze
+POST /api/v1/analyze
 ```
 
 Example request:
@@ -611,38 +611,15 @@ Example request:
 }
 ```
 
-Example response:
+The response contains `url`, an `ml` object (`prediction`, `phishing_probability`, `threshold`, and `positive_class`), an `explanation` object for class 1, separate normalized `threat_intelligence` results, and the backend `correlation` assessment. See `/docs` for the exact Pydantic schema; no sample probability or risk score is asserted here.
 
-```json
-{
-  "prediction": "phishing",
-  "ml_probability": 0.947,
-  "risk_score": 92,
-  "risk_level": "critical",
-  "threat_intelligence": {},
-  "explanation": []
-}
-```
-
-## Model Information
-
-```http
-GET /api/model-info
-```
-
-Optional:
-
-```http
-GET /api/history
-```
-
-for analysis history stored in SQLite.
+`/docs` exposes the generated OpenAPI documentation. The API does not currently provide model-info or history endpoints, a separate risk score, authentication, or a database.
 
 ---
 
 # 20. Security Considerations
 
-The application will initially analyze URL characteristics without automatically browsing arbitrary user-submitted URLs.
+The application analyzes URL strings without browsing arbitrary user-submitted destinations.
 
 The system should avoid directly performing unrestricted requests such as:
 
@@ -660,14 +637,14 @@ because arbitrary URL fetching may introduce security risks including:
 
 If webpage fetching is introduced later, it should be implemented as an isolated and sandboxed subsystem.
 
-Additional protections should include:
+Current protections include:
 
-- URL validation
-- request size limits
-- API error handling
-- timeout controls
-- rate limiting where appropriate
-- secure configuration
+- URL validation (HTTP/HTTPS only; 4,096-character maximum)
+- sanitized API errors
+- finite provider request timeouts
+- environment-based credentials and ignored `.env`
+
+Rate limiting and authentication are not implemented. External traffic is limited to the fixed, configured Threat Intelligence provider/feed endpoints; the submitted destination is never fetched or resolved.
 - secrets stored through environment variables
 - safe logging
 
@@ -733,120 +710,65 @@ python scripts/check_environment.py
 
 ---
 
-# 24. Repository Structure
+# 24. Current Repository Structure
+
+The implemented repository is organized as follows (locally acquired data and the ignored candidate model are not included in Git):
 
 ```text
-phishing-ti-ml/
-│
-├── README.md
-├── requirements.txt
-├── .gitignore
-├── .env.example
-│
-├── data/
-│   ├── raw/
-│   ├── processed/
-│   └── external/
-│
-├── models/
-│   ├── random_forest.joblib
-│   ├── xgboost.joblib
-│   └── feature_schema.json
-│
-├── backend/
-│   ├── main.py
-│   │
-│   ├── api/
-│   │   ├── routes.py
-│   │   └── schemas.py
-│   │
-│   ├── services/
-│   │   ├── analyzer.py
-│   │   ├── feature_service.py
-│   │   ├── ml_service.py
-│   │   ├── xai_service.py
-│   │   ├── ti_service.py
-│   │   └── risk_service.py
-│   │
-│   ├── threat_intelligence/
-│   │   ├── phishtank.py
-│   │   ├── urlhaus.py
-│   │   └── openphish.py
-│   │
-│   └── core/
-│       ├── config.py
-│       └── logging.py
-│
-├── frontend/
-│   ├── index.html
-│   ├── css/
-│   │   └── style.css
-│   └── js/
-│       └── app.js
-│
-├── ml/
-│   ├── notebooks/
-│   │   ├── 01_eda.ipynb
-│   │   ├── 02_features.ipynb
-│   │   ├── 03_training.ipynb
-│   │   ├── 04_evaluation.ipynb
-│   │   └── 05_xai.ipynb
-│   │
-│   └── scripts/
-│       ├── train.py
-│       └── evaluate.py
-│
-├── tests/
-│   ├── test_features.py
-│   ├── test_ml.py
-│   ├── test_ti.py
-│   ├── test_risk.py
-│   └── test_api.py
-│
+intelligent-phishing-ti-ml/
 ├── docs/
-│   └── PROJECT_SPECIFICATION.md
-│
-└── reports/
-    └── figures/
+│   ├── CORRELATION.md
+│   ├── DATASET.md
+│   ├── EDA_FINDINGS.md
+│   ├── FEATURE_ENGINEERING.md
+│   ├── ML_RESULTS.md
+│   ├── PHASE9_VALIDATION.md
+│   ├── THREAT_INTELLIGENCE.md
+│   └── XAI_RESULTS.md
+├── frontend/
+│   ├── css/styles.css
+│   ├── index.html
+│   └── js/app.js
+├── ml/
+│   ├── experiment_config.json
+│   └── notebooks/01_eda.ipynb, 02_ml_experiments.ipynb, 03_xai_shap.ipynb
+├── scripts/
+│   ├── check_environment.py
+│   ├── inspect_dataset.py
+│   ├── test_threat_intel.py
+│   └── validate_features.py
+├── src/
+│   ├── api/
+│   ├── features/
+│   ├── ml/
+│   ├── services/
+│   ├── threat_intel/
+│   └── xai/
+├── tests/
+├── data/raw/                         # locally acquired, Git-ignored
+├── models/                           # local candidate artifact, Git-ignored
+├── requirements.txt
+├── requirements-dev.txt
+└── .env.example
 ```
+
+The current Random Forest candidate is expected at `models/url_only_random_forest_seed2026_candidate.joblib`. Model artifacts are ignored by Git, so a fresh checkout needs the validated artifact supplied separately before model-backed analysis can run.
 
 ---
 
 # 25. Development Methodology
 
-The implementation will follow these phases:
+The completed work is organized into these phases:
 
-```text
-1. Project definition
-        ↓
-2. Environment setup
-        ↓
-3. Dataset acquisition
-        ↓
-4. Exploratory data analysis
-        ↓
-5. Feature engineering
-        ↓
-6. Model training
-        ↓
-7. Model evaluation
-        ↓
-8. Explainable AI
-        ↓
-9. Threat Intelligence integration
-        ↓
-10. Risk correlation
-        ↓
-11. FastAPI development
-        ↓
-12. Frontend development
-        ↓
-13. Integration
-        ↓
-14. Testing
-        ↓
-15. Documentation
-```
+1. Environment and official dataset acquisition
+2. Dataset inspection and exploratory analysis
+3. Deterministic offline URL-only feature extraction
+4. Controlled group-aware ML experiments
+5. SHAP explanations for the saved research candidate
+6. Threat Intelligence providers and evidence correlation
+7. FastAPI foundation and URL analysis service
+8. Local HTML/CSS/JavaScript frontend
+9. Application hardening and end-to-end validation
 
 ---
 
@@ -1154,39 +1076,23 @@ Potential future extensions include:
 
 ---
 
-# 31. Expected Final Result
+# 31. Current Analysis Result
 
-The final system should allow an analyst to enter a URL and receive:
+The current API and dashboard return the backend's existing analysis sections:
 
 ```text
-Prediction
+ML prediction and phishing probability
     ↓
-Phishing / Legitimate
-
-ML Probability
+SHAP contributions for the phishing class
     ↓
-e.g. 94.7%
-
-Explainability
+Separate provider results and availability
     ↓
-Why the model made the decision
-
-Threat Intelligence
-    ↓
-Known phishing/malicious evidence
-
-Risk Score
-    ↓
-e.g. 92/100
-
-Risk Level
-    ↓
-CRITICAL
+Backend correlation status and assessment
 ```
 
-The project therefore moves beyond simple phishing classification and demonstrates an integrated cybersecurity workflow combining:
+The current API does not calculate a separate risk score or risk level. The project demonstrates:
 
-**Machine Learning + Explainable AI + Threat Intelligence + Risk Assessment + Web Application Development.**
+**Machine Learning + Explainable AI + Threat Intelligence + Evidence Correlation + Web Application Development.**
 
 ---
 

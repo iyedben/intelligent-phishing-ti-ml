@@ -15,7 +15,11 @@ class AnalyzeRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    url: str = Field(min_length=1, description="Absolute HTTP(S) URL to analyze")
+    url: str = Field(
+        min_length=1,
+        max_length=4096,
+        description="Absolute HTTP(S) URL to analyze (maximum 4,096 characters)",
+    )
 
     @field_validator("url")
     @classmethod

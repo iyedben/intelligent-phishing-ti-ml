@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -93,3 +94,18 @@ def test_openapi_keeps_analysis_api_documented() -> None:
     assert "/health" in schema["paths"]
     assert "/api/v1/analyze" in schema["paths"]
     assert "/" not in schema["paths"]
+    assert schema["components"]["schemas"]["AnalyzeRequest"]["properties"]["url"]["maxLength"] == 4096
+
+
+def test_frontend_error_loading_and_empty_result_paths_are_present() -> None:
+    script = (Path(__file__).resolve().parents[1] / "frontend" / "js" / "app.js").read_text(encoding="utf-8")
+    page = (Path(__file__).resolve().parents[1] / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert 'response.status === 422' in script
+    assert 'response.status >= 500' in script
+    assert 'Unable to reach the analysis API.' in script
+    assert 'No provider results were returned.' in script
+    assert 'No feature contributions were returned.' in page
+    assert 'analyzeButton.disabled = true' in script
+    assert 'loading.hidden = false' in script
+    assert 'maxlength="4096"' in page
+    assert 'fetch(submittedUrl' not in script
