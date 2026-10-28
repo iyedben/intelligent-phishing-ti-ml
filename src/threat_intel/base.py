@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from hashlib import sha256
@@ -11,6 +12,52 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from .models import LookupStatus, ThreatIntelResult
+
+
+class ResponseTooLargeError(ValueError):
+    """Raised when a streamed provider response exceeds its byte budget."""
+
+
+def read_limited_response(response: Any, max_bytes: int, *, chunk_size: int = 64 * 1024) -> bytes:
+    """Read a streamed HTTP response while enforcing a decoded-byte limit.
+
+    A declared Content-Length larger than the limit is rejected early, but the
+    cumulative streamed byte count remains authoritative when the header is
+    absent, malformed, understated, or describes a compressed representation.
+    The caller owns and must close the response on every path.
+    """
+    if max_bytes <= 0 or chunk_size <= 0:
+        raise ValueError("response byte limits must be positive")
+    header = getattr(response, "headers", {}).get("Content-Length")
+    try:
+        declared_length = int(header) if header is not None else None
+    except (TypeError, ValueError):
+        declared_length = None
+    if declared_length is not None and declared_length > max_bytes:
+        raise ResponseTooLargeError("provider response exceeds configured byte limit")
+
+    chunks: list[bytes] = []
+    total = 0
+    for chunk in response.iter_content(chunk_size=chunk_size):
+        if not chunk:
+            continue
+        if not isinstance(chunk, bytes):
+            raise TypeError("streamed response chunks must be bytes")
+        total += len(chunk)
+        if total > max_bytes:
+            raise ResponseTooLargeError("provider response exceeds configured byte limit")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def close_response(response: Any | None) -> None:
+    """Close a streamed response while preventing close errors masking results."""
+    if response is None:
+        return
+    try:
+        response.close()
+    except Exception:
+        pass
 
 
 class ThreatIntelProvider(ABC):
@@ -25,10 +72,17 @@ class ThreatIntelProvider(ABC):
 
 
 class MemoryTTLCache:
-    """Optional process-local cache keyed by provider and exact URL bytes."""
+    """Bounded process-local TTL cache keyed by provider and exact URL bytes.
 
-    def __init__(self) -> None:
-        self._items: dict[str, tuple[float, ThreatIntelResult]] = {}
+    Successful reads refresh LRU order. Expired entries are swept on every
+    get/set, and the least-recently-used item is evicted at capacity.
+    """
+
+    def __init__(self, max_entries: int = 1024) -> None:
+        if isinstance(max_entries, bool) or not isinstance(max_entries, int) or max_entries <= 0:
+            raise ValueError("max_entries must be a positive integer")
+        self.max_entries = max_entries
+        self._items: OrderedDict[str, tuple[float, ThreatIntelResult]] = OrderedDict()
         self._lock = RLock()
 
     @staticmethod
@@ -38,18 +92,38 @@ class MemoryTTLCache:
 
     def get(self, key: str) -> ThreatIntelResult | None:
         with self._lock:
+            self._remove_expired(monotonic())
             stored = self._items.get(key)
             if stored is None:
                 return None
             expiry, value = stored
-            if monotonic() >= expiry:
+            if monotonic() >= expiry:  # Guard a clock advance after the sweep.
                 del self._items[key]
                 return None
+            self._items.move_to_end(key)
             return value.model_copy(deep=True)
 
     def set(self, key: str, value: ThreatIntelResult, ttl_seconds: float) -> None:
         with self._lock:
-            self._items[key] = (monotonic() + ttl_seconds, value.model_copy(deep=True))
+            now = monotonic()
+            self._remove_expired(now)
+            if ttl_seconds <= 0:
+                self._items.pop(key, None)
+                return
+            self._items[key] = (now + ttl_seconds, value.model_copy(deep=True))
+            self._items.move_to_end(key)
+            while len(self._items) > self.max_entries:
+                self._items.popitem(last=False)
+
+    def __len__(self) -> int:
+        with self._lock:
+            self._remove_expired(monotonic())
+            return len(self._items)
+
+    def _remove_expired(self, now: float) -> None:
+        expired = [key for key, (expiry, _) in self._items.items() if now >= expiry]
+        for key in expired:
+            del self._items[key]
 
 
 def validate_lookup_url(url: str) -> str | None:

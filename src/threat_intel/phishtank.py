@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from time import monotonic
 from typing import Any
 
@@ -9,10 +10,13 @@ import requests
 
 from .base import (
     MemoryTTLCache,
+    ResponseTooLargeError,
     ThreatIntelProvider,
     cache_success,
     cached_result,
+    close_response,
     invalid_url_result,
+    read_limited_response,
     safe_elapsed_ms,
     utc_now,
     validate_lookup_url,
@@ -27,6 +31,7 @@ class PhishTankProvider(ThreatIntelProvider):
     name = "phishtank"
     endpoint = "https://checkurl.phishtank.com/checkurl/"
     timeout_seconds = 8.0
+    max_response_bytes = 1024 * 1024
     cache_ttl_seconds = 300.0
     user_agent = "IPDTI-ML/1.0 (+https://github.com/; URL threat-intelligence lookup)"
 
@@ -58,6 +63,7 @@ class PhishTankProvider(ThreatIntelProvider):
         form: dict[str, str] = {"url": url, "format": "json"}
         if self.app_key:
             form["app_key"] = self.app_key
+        response = None
         try:
             response = self.session.post(
                 self.endpoint,
@@ -65,13 +71,16 @@ class PhishTankProvider(ThreatIntelProvider):
                 headers={"User-Agent": self.user_agent, "Accept": "application/json"},
                 timeout=self.timeout_seconds,
                 allow_redirects=False,
+                stream=True,
             )
             if not 200 <= response.status_code < 300:
                 code = response.status_code
                 error = f"http_{code}_rate_limited" if code == 509 else f"http_error_{code}"
                 return self._failure(url, error, LookupStatus.UNAVAILABLE, checked_at, started)
             response.raise_for_status()
-            payload = response.json()
+            payload = json.loads(read_limited_response(response, self.max_response_bytes))
+        except ResponseTooLargeError:
+            return self._failure(url, "response_too_large", LookupStatus.ERROR, checked_at, started)
         except requests.Timeout:
             return self._failure(url, "timeout", LookupStatus.UNAVAILABLE, checked_at, started)
         except requests.HTTPError as exc:
@@ -83,6 +92,8 @@ class PhishTankProvider(ThreatIntelProvider):
             return self._failure(url, "request_error", LookupStatus.UNAVAILABLE, checked_at, started)
         except (ValueError, TypeError):
             return self._failure(url, "invalid_json", LookupStatus.ERROR, checked_at, started)
+        finally:
+            close_response(response)
 
         record = _extract_record(payload)
         if record is None:

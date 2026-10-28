@@ -7,7 +7,16 @@ from typing import Any
 
 import requests
 
-from .base import ThreatIntelProvider, invalid_url_result, safe_elapsed_ms, utc_now, validate_lookup_url
+from .base import (
+    ResponseTooLargeError,
+    ThreatIntelProvider,
+    close_response,
+    invalid_url_result,
+    read_limited_response,
+    safe_elapsed_ms,
+    utc_now,
+    validate_lookup_url,
+)
 from .models import EvidenceLevel, LookupStatus, ThreatIntelResult
 
 
@@ -18,7 +27,9 @@ class OpenPhishProvider(ThreatIntelProvider):
     feed_url = "https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt"
     timeout_seconds = 8.0
     feed_ttl_seconds = 12 * 60 * 60
-    max_feed_characters = 50_000_000
+    # The community feed is plain URL-per-line text; 16 MiB is ample for this
+    # format while keeping the maximum decoded response allocation bounded.
+    max_feed_bytes = 16 * 1024 * 1024
 
     def __init__(
         self,
@@ -37,6 +48,7 @@ class OpenPhishProvider(ThreatIntelProvider):
         if invalid:
             return invalid_url_result(self.name, url, invalid)
         started = monotonic()
+        response = None
         try:
             if self._feed_is_fresh():
                 feed_urls = self._feed_urls or frozenset()
@@ -48,15 +60,14 @@ class OpenPhishProvider(ThreatIntelProvider):
                     headers={"User-Agent": "IPDTI-ML/1.0 (OpenPhish Community Feed reader)", "Accept": "text/plain"},
                     timeout=self.timeout_seconds,
                     allow_redirects=False,
+                    stream=True,
                 )
                 if not 200 <= response.status_code < 300:
                     return self._failure(
                         url, f"http_error_{response.status_code}", LookupStatus.UNAVAILABLE, started
                     )
                 response.raise_for_status()
-                feed_text = response.text
-                if not isinstance(feed_text, str) or len(feed_text) > self.max_feed_characters:
-                    return self._failure(url, "invalid_or_oversized_feed", LookupStatus.ERROR, started)
+                feed_text = read_limited_response(response, self.max_feed_bytes).decode("utf-8-sig")
                 feed_urls = frozenset(
                     line.strip()
                     for line in feed_text.splitlines()
@@ -69,6 +80,8 @@ class OpenPhishProvider(ThreatIntelProvider):
                 self._feed_fetched_monotonic = monotonic()
                 self._feed_fetched_at = fetched_at
                 cache_hit = False
+        except ResponseTooLargeError:
+            return self._failure(url, "oversized_feed", LookupStatus.ERROR, started)
         except requests.Timeout:
             return self._failure(url, "timeout", LookupStatus.UNAVAILABLE, started)
         except requests.HTTPError:
@@ -79,6 +92,8 @@ class OpenPhishProvider(ThreatIntelProvider):
             return self._failure(url, "request_error", LookupStatus.UNAVAILABLE, started)
         except (ValueError, TypeError):
             return self._failure(url, "invalid_feed_response", LookupStatus.ERROR, started)
+        finally:
+            close_response(response)
 
         matched = url in feed_urls
         return ThreatIntelResult(

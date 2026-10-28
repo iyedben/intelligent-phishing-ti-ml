@@ -8,9 +8,11 @@ from threading import Lock
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from src.api.middleware import DEFAULT_MAX_REQUEST_BODY_BYTES, RequestBodyLimitMiddleware
 from src.api.routes.analyze import router as analyze_router
 from src.api.routes.health import router as health_router
 
@@ -29,6 +31,7 @@ def create_app(
     analysis_service: AnalysisService | None = None,
     *,
     service_factory: Callable[[], AnalysisService] | None = None,
+    max_request_body_bytes: int = DEFAULT_MAX_REQUEST_BODY_BYTES,
 ) -> FastAPI:
     """Create a testable application without importing/initializing ML or TI."""
     application = FastAPI(
@@ -39,6 +42,27 @@ def create_app(
             "threat-intelligence evidence. Submitted destinations are not fetched."
         ),
     )
+    application.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_body_bytes=max_request_body_bytes,
+    )
+
+    @application.exception_handler(RequestValidationError)
+    async def sanitized_validation_error_handler(_, __) -> JSONResponse:
+        """Return the standard FastAPI 422 shape without untrusted values."""
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": [
+                    {
+                        "loc": ["body"],
+                        "msg": "Request validation failed.",
+                        "type": "value_error",
+                    }
+                ]
+            },
+        )
+
     frontend_dir = Path(__file__).resolve().parents[2] / "frontend"
     application.mount(
         "/static",

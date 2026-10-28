@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from time import monotonic
 from typing import Any
 
@@ -9,10 +10,13 @@ import requests
 
 from .base import (
     MemoryTTLCache,
+    ResponseTooLargeError,
     ThreatIntelProvider,
     cache_success,
     cached_result,
+    close_response,
     invalid_url_result,
+    read_limited_response,
     json_safe_provider_details,
     safe_elapsed_ms,
     utc_now,
@@ -28,6 +32,7 @@ class URLhausProvider(ThreatIntelProvider):
     name = "urlhaus"
     endpoint = "https://urlhaus-api.abuse.ch/v1/url/"
     timeout_seconds = 8.0
+    max_response_bytes = 1024 * 1024
     cache_ttl_seconds = 300.0
     user_agent = "IPDTI-ML/1.0 (URLhaus URL lookup)"
 
@@ -58,6 +63,7 @@ class URLhausProvider(ThreatIntelProvider):
 
         started = monotonic()
         checked_at = utc_now()
+        response = None
         try:
             response = self.session.post(
                 self.endpoint,
@@ -65,13 +71,16 @@ class URLhausProvider(ThreatIntelProvider):
                 headers={"Auth-Key": self.auth_key, "User-Agent": self.user_agent, "Accept": "application/json"},
                 timeout=self.timeout_seconds,
                 allow_redirects=False,
+                stream=True,
             )
             if not 200 <= response.status_code < 300:
                 code = response.status_code
                 error = f"http_{code}_rate_limited" if code == 509 else f"http_error_{code}"
                 return self._failure(url, error, LookupStatus.UNAVAILABLE, checked_at, started)
             response.raise_for_status()
-            payload = response.json()
+            payload = json.loads(read_limited_response(response, self.max_response_bytes))
+        except ResponseTooLargeError:
+            return self._failure(url, "response_too_large", LookupStatus.ERROR, checked_at, started)
         except requests.Timeout:
             return self._failure(url, "timeout", LookupStatus.UNAVAILABLE, checked_at, started)
         except requests.HTTPError:
@@ -82,6 +91,8 @@ class URLhausProvider(ThreatIntelProvider):
             return self._failure(url, "request_error", LookupStatus.UNAVAILABLE, checked_at, started)
         except (ValueError, TypeError):
             return self._failure(url, "invalid_json", LookupStatus.ERROR, checked_at, started)
+        finally:
+            close_response(response)
 
         if not isinstance(payload, dict) or not isinstance(payload.get("query_status"), str):
             return self._failure(url, "invalid_response", LookupStatus.ERROR, checked_at, started)

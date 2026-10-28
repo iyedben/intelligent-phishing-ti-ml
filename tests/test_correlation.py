@@ -1,5 +1,7 @@
 """Evidence-rule and provenance tests; all provider results are local fixtures."""
 
+import json
+
 from src.threat_intel.correlation import CorrelationEngine
 from src.threat_intel.models import (
     EvidenceLevel,
@@ -15,6 +17,13 @@ from src.threat_intel.urlhaus import URLhausProvider
 
 
 URL = "https://example.test/account"
+
+
+def streamed_response(payload: object) -> Mock:
+    body = json.dumps(payload).encode("utf-8")
+    result = Mock(status_code=200, headers={"Content-Length": str(len(body))})
+    result.iter_content.return_value = iter([body])
+    return result
 
 
 def phishtank(confirmed: bool = True) -> ThreatIntelResult:
@@ -63,17 +72,15 @@ def test_agreement_keeps_each_provider_and_ml_evidence_separate() -> None:
 
 def test_mocked_provider_integration_confirms_correlation_without_merging_sources() -> None:
     pt_session = Mock()
-    pt_response = Mock(status_code=200)
-    pt_response.raise_for_status.return_value = None
-    pt_response.json.return_value = {"results": {
+    pt_response = streamed_response({"results": {
         "in_database": True, "verified": "y", "valid": "y", "phish_id": "mock-7"
-    }}
+    }})
+    pt_response.raise_for_status.return_value = None
     pt_session.post.return_value = pt_response
 
     uh_session = Mock()
-    uh_response = Mock(status_code=200)
+    uh_response = streamed_response({"query_status": "no_results"})
     uh_response.raise_for_status.return_value = None
-    uh_response.json.return_value = {"query_status": "no_results"}
     uh_session.post.return_value = uh_response
 
     provider_results = [
@@ -91,11 +98,10 @@ def test_mocked_provider_integration_confirms_correlation_without_merging_source
 
 def test_mocked_provider_integration_surfaces_disagreement() -> None:
     session = Mock()
-    response = Mock(status_code=200)
-    response.raise_for_status.return_value = None
-    response.json.return_value = {"results": {
+    response = streamed_response({"results": {
         "in_database": True, "verified": True, "valid": True, "phish_id": "mock-8"
-    }}
+    }})
+    response.raise_for_status.return_value = None
     session.post.return_value = response
     result = PhishTankProvider(app_key="test-key", session=session).check_url(URL)
     assessment = CorrelationEngine().assess(URL, ml("legitimate", 0.20), [result])

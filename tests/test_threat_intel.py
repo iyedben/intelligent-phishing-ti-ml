@@ -21,6 +21,9 @@ def response(payload: object, *, status_code: int = 200, text: str | None = None
     result.status_code = status_code
     result.json.return_value = payload
     result.text = text
+    body = text.encode("utf-8") if text is not None else json.dumps(payload).encode("utf-8")
+    result.headers = {"Content-Length": str(len(body))}
+    result.iter_content.return_value = iter([body])
     if status_code >= 400:
         result.raise_for_status.side_effect = requests.HTTPError(response=result)
     else:
@@ -52,6 +55,8 @@ def test_phishtank_verified_positive_is_confirmed_phishing() -> None:
     assert session.post.call_args.args[0] == provider.endpoint
     assert session.post.call_args.kwargs["data"]["url"] == url
     assert session.post.call_args.kwargs["allow_redirects"] is False
+    assert session.post.call_args.kwargs["stream"] is True
+    session.post.return_value.close.assert_called_once()
     assert session.post.call_args.kwargs["timeout"] == 8.0
     assert session.post.call_args.kwargs["data"]["app_key"] == "sample-secret"
 
@@ -153,6 +158,8 @@ def test_openphish_free_feed_exact_url_match_and_feed_cache() -> None:
     assert provider.check_url("https://LISTED.example/login").match is False
     assert session.get.call_count == 1
     assert session.get.call_args.kwargs["allow_redirects"] is False
+    assert session.get.call_args.kwargs["stream"] is True
+    session.get.return_value.close.assert_called_once()
 
 
 def test_openphish_feed_failure_is_unavailable() -> None:
