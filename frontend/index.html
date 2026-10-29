@@ -3,92 +3,159 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#07131f">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#F97316">
   <title>Intelligent Phishing Detection</title>
+  <link rel="icon" type="image/png" sizes="64x64" href="/static/img/favicon.png">
+  <link rel="apple-touch-icon" href="/static/img/palm-scan.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap">
   <link rel="stylesheet" href="/static/css/styles.css">
   <script src="/static/js/app.js" defer></script>
 </head>
 <body>
-  <div class="shell">
-    <header class="topbar">
-      <a class="brand" href="/" aria-label="Intelligent Phishing Detection home">
-        <span class="brand-mark" aria-hidden="true">◎</span>
-        <span><strong>IPDTI</strong><small>SECURITY ANALYSIS</small></span>
-      </a>
-      <div class="api-status" id="api-status" role="status" aria-live="polite">
-        <span class="status-dot" aria-hidden="true"></span><span>Checking API…</span>
+  <div class="accent-rule" aria-hidden="true"></div>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <img class="brand-logo" src="/static/img/palm-scan.png" alt="" width="28" height="28" decoding="async">
+        </span>
+        <span class="brand-text">
+          <span class="brand-name">IPDTI</span>
+          <span class="brand-sub">Phishing analysis lab</span>
+        </span>
       </div>
-    </header>
+
+      <section class="side-block" aria-labelledby="history-title">
+        <div class="side-head">
+          <h2 class="side-label" id="history-title">Recent scans</h2>
+          <span class="side-count" id="history-count">0</span>
+        </div>
+        <div class="history-list" id="history-list"></div>
+        <p class="side-note" id="history-empty">Scans you run appear here.</p>
+      </section>
+
+      <section class="side-block" aria-labelledby="providers-title">
+        <h2 class="side-label" id="providers-title">Provider health</h2>
+        <div class="health-card" id="health-list"></div>
+        <p class="side-note" id="coverage-note">Run a scan to see which intel sources can answer.</p>
+      </section>
+    </aside>
 
     <main>
-      <section class="hero" aria-labelledby="page-title">
-        <p class="eyebrow">URL THREAT ANALYSIS</p>
-        <h1 id="page-title">Intelligent Phishing Detection</h1>
-        <p class="subtitle">Machine Learning <span>•</span> Explainable AI <span>•</span> Threat Intelligence</p>
-        <p class="intro">Assess URL structure with a research model, inspect its explanation, and compare independent threat intelligence evidence.</p>
-      </section>
+      <header class="page-head">
+        <h1>URL scanner</h1>
+        <p class="page-sub">Model score, explanation and threat-intel lookups for any link. The link itself is never opened.</p>
+      </header>
 
-      <section class="panel search-panel" aria-labelledby="analyze-title">
-        <div class="section-heading">
-          <div><p class="eyebrow">NEW ANALYSIS</p><h2 id="analyze-title">Enter a URL</h2></div>
-          <span class="offline-note"><span aria-hidden="true">⌁</span> URL is not opened by this app</span>
-        </div>
-        <form id="analysis-form" novalidate>
-          <label for="url-input">Website URL</label>
-          <div class="input-row">
-            <input id="url-input" name="url" type="url" inputmode="url" autocomplete="url" maxlength="4096"
-              placeholder="https://example.com" aria-describedby="url-help form-error" required>
-            <button class="button button-primary" id="analyze-button" type="submit">
-              <span class="button-label">Analyze URL</span><span class="button-arrow" aria-hidden="true">→</span>
+      <form id="analysis-form" novalidate>
+        <label for="url-input">URL to scan</label>
+        <div class="input-shell" id="input-shell">
+          <div class="input-main">
+            <span class="input-chip" aria-hidden="true">URL</span>
+            <input id="url-input" name="url" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+              maxlength="4096" placeholder="https://example.com/login" aria-describedby="form-error" required>
+            <button class="input-clear" type="reset" aria-label="Clear URL">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
             </button>
           </div>
-          <div class="form-foot"><span id="url-help">Use a complete HTTP or HTTPS address.</span><button class="button-reset" type="reset">Clear</button></div>
-          <p class="form-error" id="form-error" role="alert" hidden></p>
-        </form>
-        <div class="loading" id="loading" role="status" aria-live="polite" hidden><span class="spinner" aria-hidden="true"></span><span>Analyzing URL…</span><small>Checking model and configured intelligence providers</small></div>
-      </section>
+          <button class="scan-button" id="analyze-button" type="submit">
+            <span class="spinner spinner-on-dark" id="button-spinner" aria-hidden="true" hidden></span>
+            <span id="button-label">Scan URL</span>
+          </button>
+        </div>
+        <div class="scan-bar" id="scan-bar" aria-hidden="true" hidden><span></span></div>
+        <p class="form-error" id="form-error" role="alert" hidden></p>
+        <div class="samples">
+          <span class="samples-label">Samples</span>
+          <button type="button" class="sample sample-safe" data-url="https://example.com">example.com</button>
+          <button type="button" class="sample sample-risk" data-url="http://paypa1-secure-login.xyz/verify">paypa1-secure-login.xyz</button>
+        </div>
+      </form>
 
-      <section id="analysis-results" aria-live="polite" aria-busy="false" hidden>
-        <div class="result-heading"><div><p class="eyebrow">ANALYSIS REPORT</p><h2>Results</h2></div><p class="analyzed-url" id="result-url"></p></div>
-        <div class="primary-grid">
-          <article class="panel prediction-card" id="prediction-card">
-            <div class="card-kicker"><span class="icon-tile" aria-hidden="true">◈</span><span>MODEL ASSESSMENT</span><span class="research-tag">RESEARCH MODEL</span></div>
-            <p class="metric-label">Prediction</p><p class="prediction-value" id="prediction-value"></p>
-            <p class="prediction-context">Model-based evidence; it does not establish that a URL is malicious or safe.</p>
-            <div class="probability-row"><div><span class="metric-label">Phishing probability</span><strong id="probability-value"></strong></div><div class="threshold"><span class="metric-label">Decision threshold</span><strong id="threshold-value"></strong></div></div>
-            <div class="probability-track" role="img" aria-label="Phishing probability"><span id="probability-bar"></span><i id="threshold-marker" title="Decision threshold"></i></div>
+      <div class="steps" id="loading" role="status" aria-live="polite" hidden>
+        <div class="step"><span class="spinner spinner-orange" aria-hidden="true"></span>Scoring with model</div>
+        <div class="step"><span class="spinner spinner-blue" aria-hidden="true"></span>Computing SHAP values</div>
+        <div class="step"><span class="spinner spinner-blue" aria-hidden="true"></span>Querying intel sources</div>
+      </div>
+
+      <div class="empty-state" id="idle-state">
+        <svg aria-hidden="true" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.5-4.5"></path>
+        </svg>
+        <p class="empty-title">Paste a link to start</p>
+        <p class="empty-sub">You will get a model score, the features behind it, and what independent blocklists say.</p>
+      </div>
+
+      <section id="analysis-results" aria-label="Scan report" aria-live="polite" aria-busy="false" hidden>
+        <div class="report-top">
+          <article class="gauge-card" id="gauge-card">
+            <div class="gauge">
+              <svg id="gauge-svg" role="img" width="160" height="160" viewBox="0 0 160 160" aria-label="Phishing probability">
+                <circle cx="80" cy="80" r="64" fill="none" stroke="#FFFFFF" stroke-width="16"></circle>
+                <circle id="gauge-arc" cx="80" cy="80" r="64" fill="none" stroke="#38BDF8" stroke-width="16"
+                  stroke-linecap="round" stroke-dasharray="0 402.1" transform="rotate(-90 80 80)"></circle>
+                <line id="gauge-tick" x1="80" y1="138" x2="80" y2="158" stroke="#0B1220" stroke-width="2"></line>
+              </svg>
+              <div class="gauge-center">
+                <span class="gauge-value" id="probability-value"></span>
+                <span class="gauge-caption">phishing probability</span>
+              </div>
+            </div>
+            <p class="gauge-foot" id="threshold-caption"></p>
           </article>
 
-          <article class="panel correlation-card">
-            <div class="card-kicker"><span class="icon-tile violet" aria-hidden="true">⌘</span><span>CORRELATED ASSESSMENT</span></div>
-            <p class="metric-label">Status</p><h3 id="correlation-status"></h3>
-            <p class="correlation-assessment" id="correlation-assessment"></p>
-            <div class="correlation-meta"><span>Evidence level <strong id="correlation-level"></strong></span><span id="disagreement-badge" hidden>Evidence disagreement</span></div>
-            <div id="correlation-rules-wrap" class="rules-wrap" hidden><span class="metric-label">Rules applied</span><ul id="correlation-rules"></ul></div>
+          <article class="summary-card">
+            <p class="result-url" id="result-url"></p>
+            <h2 class="result-title" id="prediction-value"></h2>
+            <p class="result-summary" id="correlation-assessment"></p>
+            <div class="signal-list" id="signal-list"></div>
           </article>
         </div>
 
-        <div class="secondary-grid">
-          <section class="panel shap-panel" aria-labelledby="shap-title">
-            <div class="section-heading compact"><div><p class="eyebrow">EXPLAINABLE AI</p><h2 id="shap-title">Model contributions</h2></div><span class="method-chip" id="shap-method"></span></div>
-            <p class="section-note">Contributions show how features moved this model's score for phishing class <span id="explained-class"></span>. They do not establish causality.</p>
-            <div class="contribution-list" id="contributions"></div>
+        <div class="tab-panel">
+          <div class="tab-strip" role="tablist" aria-label="Report sections">
+            <button type="button" class="tab is-active" role="tab" data-tab="explain" aria-selected="true" aria-controls="panel-explain">Explanation</button>
+            <button type="button" class="tab" role="tab" data-tab="intel" aria-selected="false" aria-controls="panel-intel">Threat intel</button>
+            <button type="button" class="tab" role="tab" data-tab="raw" aria-selected="false" aria-controls="panel-raw">Raw data</button>
+          </div>
+
+          <div class="tab-body" id="panel-explain" role="tabpanel">
+            <p class="split-note">Net push on the score across the strongest features the API returned — toward legitimate on the left, toward phishing on the right.</p>
+            <div class="split-bar" id="split-bar" aria-hidden="true">
+              <span class="split-safe" id="split-safe"></span>
+              <span class="split-risk" id="split-risk"></span>
+            </div>
+            <div class="feature-grid" id="contributions"></div>
             <p class="empty-note" id="no-contributions" hidden>No feature contributions were returned.</p>
-          </section>
+            <p class="tab-foot" id="shap-method"></p>
+          </div>
 
-          <section class="panel ti-panel" aria-labelledby="ti-title">
-            <div class="section-heading compact"><div><p class="eyebrow">EXTERNAL EVIDENCE</p><h2 id="ti-title">Threat intelligence</h2></div><span class="independent-tag">INDEPENDENT SOURCES</span></div>
-            <p class="section-note">Provider results are separate from the model prediction. A no-match result is not proof of safety.</p>
-            <div class="provider-list" id="provider-list"></div>
-          </section>
+          <div class="tab-body" id="panel-intel" role="tabpanel" hidden>
+            <div class="table-wrap">
+              <table class="intel-table">
+                <thead>
+                  <tr><th scope="col">Source</th><th scope="col">Result</th><th scope="col">What it means</th><th scope="col" class="num">Time</th></tr>
+                </thead>
+                <tbody id="provider-list"></tbody>
+              </table>
+            </div>
+            <p class="tab-foot" id="coverage-text"></p>
+          </div>
+
+          <div class="tab-body" id="panel-raw" role="tabpanel" hidden>
+            <pre class="raw" id="raw-json"></pre>
+          </div>
         </div>
-        <p class="footer-disclaimer">This research tool provides evidence for review. A URL-only model cannot observe webpage behavior; use provider status and model output as distinct signals.</p>
       </section>
 
       <div class="global-message" id="global-message" role="alert" hidden></div>
+
+      <p class="footer-disclaimer">A URL-only model cannot observe page content or behaviour. Treat the model score and provider results as separate signals. A no-match is not proof of safety. Analysis runs on the local FastAPI service.</p>
     </main>
-    <footer><span>IPDTI · Research interface</span><span>Analysis performed by the local FastAPI service</span></footer>
   </div>
 </body>
 </html>
