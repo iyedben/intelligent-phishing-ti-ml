@@ -20,7 +20,12 @@ from src.features import FEATURE_SCHEMA, FEATURE_SCHEMA_VERSION, extract_url_fea
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_ARTIFACT_PATH = PROJECT_ROOT / "models" / "url_only_random_forest_seed2026_candidate.joblib"
+DEFAULT_ARTIFACT_PATH = (
+    PROJECT_ROOT
+    / "models"
+    / "hostname_grouped_phase11b"
+    / "hostname_grouped_random_forest_seed2026_candidate.joblib"
+)
 PHISHING_CLASS = 1
 MODEL_OUTPUT = "raw"
 FEATURE_PERTURBATION = "tree_path_dependent"
@@ -108,6 +113,7 @@ class URLShapExplainer:
     artifact_path: Path
     shap_version: str
     _phishing_output_index: int
+    threshold: float = 0.5
 
     @classmethod
     def from_artifact(cls, artifact_path: str | Path = DEFAULT_ARTIFACT_PATH) -> "URLShapExplainer":
@@ -138,6 +144,19 @@ class URLShapExplainer:
             raise ValueError("Model's fitted feature names/order do not match the artifact/schema")
         output_index = _class_output_index(np.asarray(estimator.classes_), PHISHING_CLASS)
 
+        metadata = bundle.get("metadata", {})
+        selection = metadata.get("selection", {}) if isinstance(metadata, dict) else {}
+        configured_threshold = selection.get("selected_threshold")
+        if configured_threshold is None and isinstance(metadata, dict):
+            configured_threshold = metadata.get("baseline_threshold")
+        if configured_threshold is None:
+            configured_threshold = 0.5
+        if not isinstance(configured_threshold, (int, float, np.number)):
+            raise ValueError("Artifact decision threshold must be numeric")
+        threshold = float(configured_threshold)
+        if not np.isfinite(threshold) or not 0.0 <= threshold <= 1.0:
+            raise ValueError("Artifact decision threshold must be between 0 and 1")
+
         tree_explainer = shap.TreeExplainer(
             estimator,
             model_output=MODEL_OUTPUT,
@@ -152,6 +171,7 @@ class URLShapExplainer:
             artifact_path=path,
             shap_version=shap.__version__,
             _phishing_output_index=output_index,
+            threshold=threshold,
         )
 
     def feature_frame(self, url: str) -> tuple[dict[str, int | str], pd.DataFrame]:
@@ -208,7 +228,7 @@ class URLShapExplainer:
         extracted, X = self.feature_frame(url)
         probabilities, shap_values, base_values = self.explain_frame(X)
         probability = float(probabilities[0])
-        prediction = "phishing" if probability >= 0.5 else "legitimate"
+        prediction = "phishing" if probability >= self.threshold else "legitimate"
         contributions: list[dict[str, Any]] = []
         sorted_indices = np.argsort(-np.abs(shap_values[0]), kind="stable")
         for index in sorted_indices:
@@ -231,7 +251,7 @@ class URLShapExplainer:
             "url": url,
             "prediction": prediction,
             "phishing_probability": probability,
-            "threshold": 0.5,
+            "threshold": self.threshold,
             "positive_class": PHISHING_CLASS,
             "features": {name: _python_scalar(extracted[name]) for name in self.feature_names},
             "explanation": {

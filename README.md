@@ -752,22 +752,22 @@ intelligent-phishing-ti-ml/
 └── .env.example
 ```
 
-The current Random Forest candidate is expected at `models/url_only_random_forest_seed2026_candidate.joblib`. Model artifacts are ignored by Git, so a fresh checkout needs the validated artifact supplied separately before model-backed analysis can run.
+The application uses the selected Phase 11B hostname-grouped Random Forest at `models/hostname_grouped_phase11b/hostname_grouped_random_forest_seed2026_candidate.joblib`. Model artifacts are ignored by Git, so a fresh checkout needs the validated artifact supplied separately before model-backed analysis can run. The historical URL-grouped artifact remains available at `models/url_only_random_forest_seed2026_candidate.joblib` for comparison only.
 
 ## Obtaining the Random Forest research candidate
 
-The model is excluded from Git and must be downloaded separately. The expected GitHub Release asset is `url_only_random_forest_seed2026_candidate.joblib`; the release has **not yet been published**. Once available, download that asset from the project release page for `<release-tag>` and save it to:
+The selected model is excluded from Git and must be supplied separately. The expected local artifact is `hostname_grouped_random_forest_seed2026_candidate.joblib` beneath `models/hostname_grouped_phase11b/`; the release has **not yet been published**. Once available, obtain the asset from the project release page for `<release-tag>` and save it to:
 
-`models/url_only_random_forest_seed2026_candidate.joblib`
+`models/hostname_grouped_phase11b/hostname_grouped_random_forest_seed2026_candidate.joblib`
 
 Verify the SHA-256 in PowerShell before running the application:
 
 ```powershell
-$model = ".\models\url_only_random_forest_seed2026_candidate.joblib"
+$model = ".\models\hostname_grouped_phase11b\hostname_grouped_random_forest_seed2026_candidate.joblib"
 if (!(Test-Path -LiteralPath $model -PathType Leaf)) {
     throw "Model artifact is missing. Download the asset from the project GitHub Release."
 }
-$expected = "ba205afaa56fb532bd4ceea566eb441d6494c39e0a811e976732e76550b7debc"
+$expected = "ceed3f58cedca8493a3a591a7ce2f3ce674a6f6e5fb8b70d42d35637f41793f4"
 $actual = (Get-FileHash -LiteralPath $model -Algorithm SHA256).Hash.ToLowerInvariant()
 if ($actual -ne $expected) {
     throw "Model SHA-256 mismatch. Do not load this artifact; verify the download and release checksum."
@@ -1166,6 +1166,15 @@ The response separates `ml` (phishing probability, prediction, threshold, positi
 Interactive API documentation is available at `http://127.0.0.1:8000/docs`; the OpenAPI schema describes the request, response, and validation errors.
 
 The API uses the existing URL-only extractor, saved Random Forest candidate, SHAP explainer, TI providers, and correlation engine through an application service. The model/service is loaded lazily on the first `/api/v1/analyze` request and reused for that app process. The API never opens, downloads, renders, or executes the submitted destination. The only external requests are to the configured TI provider endpoints; submitting a URL discloses it to those providers.
+
+Phase 13.1 adds an offline-gated running-application validation utility. See
+[Application Validation](docs/APPLICATION_VALIDATION.md) for the provider-disabled
+startup harness, sampling protocol, and report interpretation. Run it with
+`--confirm-offline-ti` only after confirming that the local server was started
+with an empty provider sequence; the flag is operator confirmation, not proof
+of server configuration. This sample checks application integration against the
+existing hostname-grouped test partition and does not replace the Phase 11B
+benchmark.
 
 ## Frontend
 

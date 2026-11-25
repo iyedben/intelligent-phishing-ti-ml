@@ -164,3 +164,13 @@ def test_shap_metadata_is_preserved_with_ml_evidence() -> None:
 def test_ml_prediction_probability_and_threshold_must_agree() -> None:
     with pytest.raises(ValueError, match="must agree"):
         MLPrediction(prediction="phishing", phishing_probability=0.20, threshold=0.5)
+
+
+@pytest.mark.parametrize(
+    ("probability", "prediction"),
+    [(0.49, "legitimate"), (0.50, "phishing"), (0.51, "phishing")],
+)
+def test_ml_prediction_threshold_boundaries(probability: float, prediction: str) -> None:
+    result = MLPrediction(prediction=prediction, phishing_probability=probability, threshold=0.5)
+
+    assert result.prediction == prediction

@@ -157,3 +157,21 @@ Random Forest and XGBoost importances are built-in split/gain summaries. Logisti
 7. Feature importances are not explainability. SHAP, API/frontend, and Threat Intelligence work remain for later phases.
 
 The feature layer and first controlled ML comparison are ready for the next XAI/SHAP phase, subject to these limitations and with no claim of universal phishing detection.
+
+## Phase 11B hostname-grouped comparison
+
+Phase 11B retrained all candidates on the separate Phase 11A hostname-grouped
+benchmark using the explicit policy `hostname_fallback_no_offline_psl`. This is
+hostname isolation only, not registrable-domain/eTLD+1 isolation. Random Forest,
+Logistic Regression, and XGBoost used the same eight canonical features and
+three hostname-isolated CV folds inside training. Candidate and threshold
+selection used validation only; the test partition was scored once after the
+selection was frozen.
+
+Random Forest was selected at threshold 0.50. Its one-time hostname-grouped
+test result was PR-AUC 0.996145, ROC-AUC 0.995017, phishing precision 0.998794,
+phishing recall 0.984225, F1 0.991456, FPR 0.000891, and FNR 0.015775. This is a
+separate research benchmark, not a replacement for the historical URL-grouped
+results above and not a production or registrable-domain claim. See the
+[Phase 11B comparison report](HOSTNAME_GROUPED_MODEL_COMPARISON.md) and
+[machine-readable metadata](../reports/hostname_grouped_phase11b_model_comparison.json).

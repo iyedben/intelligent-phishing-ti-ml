@@ -192,6 +192,7 @@ cython_debug/
 
 # Generated model artifacts and local databases
 models/*.joblib
+models/**/*.joblib
 models/*.pkl
 *.sqlite
 *.sqlite3

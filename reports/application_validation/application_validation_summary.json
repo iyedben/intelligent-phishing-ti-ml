@@ -1,0 +1,94 @@
+{
+  "generated_at_utc": "2026-11-25T18:04:10.098677+00:00",
+  "validation_type": "application_integration_sample_not_independent_model_evaluation",
+  "configuration": {
+    "endpoint": "http://127.0.0.1:8000/api/v1/analyze",
+    "base_url": "http://127.0.0.1:8000",
+    "timeout_seconds": 10.0,
+    "dataset_path": "C:\\Users\\baiye\\intelligent-phishing-ti-ml\\data\\raw\\PhiUSIIL_Phishing_URL_Dataset.csv",
+    "dataset_sha256": "a236549cd369cd80bd478ff8e1779cbf44c58d5c3f79f7a51a1adbed7d06d1c6",
+    "grouping_policy": "hostname_fallback_no_offline_psl",
+    "split_seed": 2026,
+    "sampling_seed": 2026,
+    "samples_per_class_requested": 50,
+    "sampled_test_partition_only": true,
+    "threshold": 0.5,
+    "positive_class": 1,
+    "label_mapping": {
+      "source_0": "phishing -> evaluation 1",
+      "source_1": "legitimate -> evaluation 0",
+      "api_phishing": "evaluation 1",
+      "api_legitimate": "evaluation 0"
+    },
+    "offline_ti": {
+      "confirmation_flag_required": true,
+      "operator_confirmed": true,
+      "response_status_required": "ml_only_no_ti_providers",
+      "verified_by_response": true,
+      "note": "The flag is operator confirmation, not proof of server startup configuration."
+    }
+  },
+  "model": {
+    "path": "C:\\Users\\baiye\\intelligent-phishing-ti-ml\\models\\hostname_grouped_phase11b\\hostname_grouped_random_forest_seed2026_candidate.joblib",
+    "expected_sha256": "ceed3f58cedca8493a3a591a7ce2f3ce674a6f6e5fb8b70d42d35637f41793f4",
+    "actual_sha256": "ceed3f58cedca8493a3a591a7ce2f3ce674a6f6e5fb8b70d42d35637f41793f4",
+    "threshold": 0.5,
+    "positive_class": 1,
+    "feature_names": [
+      "URLLength",
+      "DomainLength",
+      "IsDomainIP",
+      "NoOfDegitsInURL",
+      "NoOfEqualsInURL",
+      "NoOfQMarkInURL",
+      "NoOfAmpersandInURL",
+      "IsHTTPS"
+    ],
+    "feature_schema_version": "1.0.0",
+    "classes": [
+      0,
+      1
+    ]
+  },
+  "sampling": {
+    "requested_per_class": 50,
+    "selected_total": 100,
+    "selected_phishing": 50,
+    "selected_legitimate": 50,
+    "attempted": 100,
+    "successful": 100,
+    "failed": 0
+  },
+  "metrics": {
+    "total_successful": 100,
+    "accuracy": 0.99,
+    "precision": 1.0,
+    "recall": 0.98,
+    "f1": 0.98989898989899,
+    "false_positive_rate": 0.0,
+    "false_negative_rate": 0.02,
+    "specificity": 1.0,
+    "confusion_matrix": [
+      [
+        50,
+        0
+      ],
+      [
+        1,
+        49
+      ]
+    ],
+    "confusion_matrix_order": "[[TN, FP], [FN, TP]]",
+    "limitations": [
+      "sampled application-integration check; not a replacement for the complete Phase 11B benchmark",
+      "hostname grouping is not registrable-domain/eTLD+1 isolation",
+      "a legitimate prediction does not prove that a URL is safe"
+    ]
+  },
+  "failures": [],
+  "stop_reason": null,
+  "exclusions": {
+    "count": 0,
+    "reasons": []
+  }
+}

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
+import ipaddress
 from pathlib import Path
 import platform
 from typing import Any
+from urllib.parse import urlsplit
 
 import joblib
 import numpy as np
@@ -38,6 +40,12 @@ LEGITIMATE_SOURCE_LABEL = 1
 MODEL_FEATURE_NAMES: tuple[str, ...] = tuple(
     feature.name for feature in FEATURE_SCHEMA if feature.python_type is int
 )
+DOMAIN_GROUPING_METHOD = "hostname_fallback_no_offline_psl"
+DOMAIN_GROUPING_POLICY = (
+    "case-folded parsed hostname; IP literals use canonical IP text; "
+    "no Public Suffix List package or local suffix data is available"
+)
+URL_NORMALIZATION_POLICY = "case-fold URL text and remove trailing slash characters"
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +154,118 @@ def group_aware_three_way_split(
     return partitions
 
 
+def normalized_url_key(url: str) -> str:
+    """Return the documented audit key for equivalent URL spelling checks."""
+    if not isinstance(url, str) or not url:
+        raise ValueError("url must be a non-empty string")
+    return url.casefold().rstrip("/")
+
+
+def domain_group_key(url: str) -> str:
+    """Return the explicit offline hostname-grouping key for one URL.
+
+    A Public Suffix List implementation is not installed and no local suffix
+    data is vendored, so this Phase 11A benchmark uses a documented hostname
+    fallback. This keeps subdomains of the same hostname together but does not
+    establish registrable-domain (eTLD+1) equivalence across sibling hosts.
+    """
+    if not isinstance(url, str) or not url:
+        raise ValueError("url must be a non-empty string")
+    if any(character.isspace() or ord(character) < 0x20 or ord(character) == 0x7F for character in url):
+        raise ValueError("url must not contain whitespace or control characters")
+    try:
+        parsed = urlsplit(url)
+        hostname = parsed.hostname
+        _ = parsed.port
+    except ValueError as exc:
+        raise ValueError(f"malformed URL: {exc}") from exc
+    if parsed.scheme.casefold() not in {"http", "https"} or not parsed.netloc or hostname is None:
+        raise ValueError("url must be an absolute HTTP(S) URL with a hostname")
+
+    normalized_host = hostname.rstrip(".").casefold()
+    try:
+        address = ipaddress.ip_address(normalized_host)
+    except ValueError:
+        return f"hostname:{normalized_host}"
+    return f"ip:{address.compressed.casefold()}"
+
+
+def domain_grouped_three_way_split(
+    X: pd.DataFrame,
+    y: pd.Series,
+    urls: pd.Series,
+    *,
+    random_state: int = RANDOM_STATE,
+) -> dict[str, np.ndarray]:
+    """Create a deterministic hostname-grouped 70/15/15 benchmark split.
+
+    Whole hostname groups are assigned to one of three partitions. Groups are
+    ordered deterministically by descending size with seeded tie noise, then
+    assigned to the partition with the lowest normalized row/class load. This
+    preserves mixed-label groups and balances rows and the phishing target
+    without fitting or using any model.
+    """
+    if not (len(X) == len(y) == len(urls)):
+        raise ValueError("X, y, and urls must have equal lengths")
+    if len(urls) < 3:
+        raise ValueError("at least three rows are required for three partitions")
+
+    group_keys = pd.Series([domain_group_key(url) for url in urls.astype(str)], index=urls.index)
+    group_codes, unique_groups = pd.factorize(group_keys, sort=False)
+    group_count = len(unique_groups)
+    if group_count < 3:
+        raise ValueError("at least three hostname groups are required for three partitions")
+
+    y_values = np.asarray(y, dtype=np.int8)
+    if not np.isin(y_values, [0, 1]).all():
+        raise ValueError("y must contain only model targets 0 and 1")
+    group_rows = np.bincount(group_codes, minlength=group_count).astype(np.float64)
+    group_positive = np.bincount(group_codes, weights=y_values, minlength=group_count)
+    target_rows = np.asarray([0.70, 0.15, 0.15]) * len(y_values)
+    target_positive = np.asarray([0.70, 0.15, 0.15]) * int(y_values.sum())
+    positive_scale = np.where(target_positive > 0, target_positive, 1.0)
+
+    rng = np.random.default_rng(random_state)
+    order = np.lexsort((rng.random(group_count), -group_rows))
+    partition_for_group = np.full(group_count, -1, dtype=np.int8)
+    current_rows = np.zeros(3, dtype=np.float64)
+    current_positive = np.zeros(3, dtype=np.float64)
+    for group_code in order:
+        scores = current_rows / target_rows + current_positive / positive_scale
+        partition = int(np.argmin(scores))
+        partition_for_group[group_code] = partition
+        current_rows[partition] += group_rows[group_code]
+        current_positive[partition] += group_positive[group_code]
+
+    row_partition = partition_for_group[group_codes]
+    partitions = {
+        "train": np.flatnonzero(row_partition == 0),
+        "validation": np.flatnonzero(row_partition == 1),
+        "test": np.flatnonzero(row_partition == 2),
+    }
+    if any(len(indices) == 0 for indices in partitions.values()):
+        raise RuntimeError("hostname-grouped split produced an empty partition")
+
+    partition_groups = {
+        name: set(group_keys.iloc[indices].astype(str)) for name, indices in partitions.items()
+    }
+    partition_urls = {
+        name: set(urls.iloc[indices].astype(str)) for name, indices in partitions.items()
+    }
+    partition_normalized_urls = {
+        name: {normalized_url_key(url) for url in urls.iloc[indices].astype(str)}
+        for name, indices in partitions.items()
+    }
+    for left, right in (("train", "validation"), ("train", "test"), ("validation", "test")):
+        if partition_groups[left] & partition_groups[right]:
+            raise RuntimeError(f"hostname group leakage: {left}/{right}")
+        if partition_urls[left] & partition_urls[right]:
+            raise RuntimeError(f"exact URL leakage: {left}/{right}")
+        if partition_normalized_urls[left] & partition_normalized_urls[right]:
+            raise RuntimeError(f"normalized URL leakage: {left}/{right}")
+    return partitions
+
+
 def _assign_stratified_group_folds(y: pd.Series, urls: pd.Series, *, n_splits: int,
                                    random_state: int) -> np.ndarray:
     """Assign each exact URL group to one fold, stratified by its single label."""
@@ -169,6 +289,90 @@ def _assign_stratified_group_folds(y: pd.Series, urls: pd.Series, *, n_splits: i
     if (group_fold < 0).any():
         raise RuntimeError("Group fold allocator left URL groups unassigned")
     return group_fold[group_codes]
+
+
+def _assign_balanced_hostname_folds(
+    y: pd.Series,
+    urls: pd.Series,
+    *,
+    n_splits: int,
+    random_state: int,
+) -> np.ndarray:
+    """Assign whole hostname groups to balanced deterministic CV folds."""
+    if len(y) != len(urls):
+        raise ValueError("y and urls must have equal lengths")
+    if n_splits < 2:
+        raise ValueError("at least two folds are required")
+    y_values = np.asarray(y, dtype=np.int8)
+    if not np.isin(y_values, [0, 1]).all():
+        raise ValueError("y must contain only model targets 0 and 1")
+
+    group_keys = pd.Series([domain_group_key(url) for url in urls.astype(str)], index=urls.index)
+    group_codes, unique_groups = pd.factorize(group_keys, sort=False)
+    group_count = len(unique_groups)
+    if group_count < n_splits:
+        raise ValueError("not enough hostname groups for requested CV folds")
+
+    group_rows = np.bincount(group_codes, minlength=group_count).astype(np.float64)
+    group_positive = np.bincount(group_codes, weights=y_values, minlength=group_count)
+    target_rows = np.full(n_splits, len(y_values) / n_splits, dtype=np.float64)
+    target_positive = np.full(n_splits, int(y_values.sum()) / n_splits, dtype=np.float64)
+    positive_scale = np.where(target_positive > 0, target_positive, 1.0)
+
+    rng = np.random.default_rng(random_state)
+    order = np.lexsort((rng.random(group_count), -group_rows))
+    fold_for_group = np.full(group_count, -1, dtype=np.int16)
+    current_rows = np.zeros(n_splits, dtype=np.float64)
+    current_positive = np.zeros(n_splits, dtype=np.float64)
+    for group_code in order:
+        scores = current_rows / target_rows + current_positive / positive_scale
+        fold_id = int(np.argmin(scores))
+        fold_for_group[group_code] = fold_id
+        current_rows[fold_id] += group_rows[group_code]
+        current_positive[fold_id] += group_positive[group_code]
+
+    fold_assignment = fold_for_group[group_codes]
+    if (fold_assignment < 0).any():
+        raise RuntimeError("hostname CV allocator left groups unassigned")
+    return fold_assignment
+
+
+def hostname_grouped_cv_indices(
+    y: pd.Series,
+    urls: pd.Series,
+    *,
+    n_splits: int = 5,
+    random_state: int = RANDOM_STATE,
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Return deterministic hostname-isolated CV indices for training rows only."""
+    fold_assignment = _assign_balanced_hostname_folds(
+        y, urls, n_splits=n_splits, random_state=random_state
+    )
+    group_keys = pd.Series([domain_group_key(url) for url in urls.astype(str)], index=urls.index)
+    splits: list[tuple[np.ndarray, np.ndarray]] = []
+    for fold_id in range(n_splits):
+        validation_indices = np.flatnonzero(fold_assignment == fold_id)
+        training_indices = np.flatnonzero(fold_assignment != fold_id)
+        training_groups = set(group_keys.iloc[training_indices].astype(str))
+        validation_groups = set(group_keys.iloc[validation_indices].astype(str))
+        if training_groups & validation_groups:
+            raise RuntimeError(f"hostname leakage across CV fold {fold_id}")
+        if not len(validation_indices) or not len(training_indices):
+            raise RuntimeError(f"hostname CV fold {fold_id} is empty")
+        splits.append((training_indices, validation_indices))
+    return splits
+
+
+def phishing_probability(estimator: Any, X: pd.DataFrame | np.ndarray) -> np.ndarray:
+    """Return probability for model class 1 using the estimator's class ordering."""
+    classes = np.asarray(getattr(estimator, "classes_", []))
+    matching = np.flatnonzero(classes == POSITIVE_CLASS)
+    if len(matching) != 1:
+        raise ValueError("estimator must expose exactly one phishing-positive class 1")
+    probabilities = np.asarray(estimator.predict_proba(X), dtype=np.float64)
+    if probabilities.ndim != 2 or probabilities.shape[1] != len(classes):
+        raise ValueError("predict_proba output does not match estimator classes_")
+    return probabilities[:, int(matching[0])]
 
 
 def make_baseline_models(random_state: int = RANDOM_STATE) -> dict[str, Any]:
@@ -238,7 +442,7 @@ def validation_results(models: dict[str, Any], X_train: pd.DataFrame, y_train: p
     for name, estimator in models.items():
         estimator.fit(X_train, y_train)
         fitted[name] = estimator
-        probabilities = estimator.predict_proba(X_validation)[:, 1]
+        probabilities = phishing_probability(estimator, X_validation)
         rows.append({"model": name, **calculate_metrics(y_validation, probabilities, threshold=0.5)})
     return fitted, pd.DataFrame(rows).set_index("model")
 

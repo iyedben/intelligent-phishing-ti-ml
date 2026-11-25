@@ -99,4 +99,9 @@ python -m jupyter nbconvert --to notebook --execute --inplace --ExecutePreproces
 
 The notebook records its outputs and writes the ranking and plots beneath `reports/xai/`. Runtime used for validation: Python `3.12.10`, SHAP `0.54.1`, scikit-learn `1.9.1`, pandas `3.1.0`, and NumPy `2.5.4`. Dataset SHA-256 is the Phase 5 artifact value `a236549cd369cd80bd478ff8e1779cbf44c58d5c3f79f7a51a1adbed7d06d1c6`.
 
-The XAI utilities can be called from a future service layer, subject to review of the candidate status and the limitations above. This phase does not implement or integrate FastAPI, and it does not establish a final production threshold.
+Phase 12 integrates the selected hostname-grouped Random Forest into the FastAPI
+service through the same `URLShapExplainer` interface. The application default
+is now `models/hostname_grouped_phase11b/hostname_grouped_random_forest_seed2026_candidate.joblib`
+with the metadata-frozen threshold `0.50`; the Phase 5 artifact remains a
+historical reference. The application integration preserves class-1 probability
+mapping, SHAP additivity, and the no-network behavior of local explanation.

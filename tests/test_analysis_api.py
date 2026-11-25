@@ -12,6 +12,8 @@ from src.api import create_app
 from src.services.analysis_service import AnalysisService
 from src.threat_intel.correlation import CorrelationEngine
 from src.threat_intel.models import EvidenceLevel, LookupStatus, ThreatIntelResult
+from src.xai import URLShapExplainer
+from src.xai.shap_explainer import DEFAULT_ARTIFACT_PATH
 
 
 URL = "https://example.com"
@@ -151,6 +153,45 @@ def test_valid_analysis_endpoint_preserves_ml_shap_ti_and_correlation(monkeypatc
     assert correlation.calls[0][0] == URL
     assert explainer.urls == [URL]
     assert all(provider.urls == [URL] for provider in providers)
+
+
+@pytest.mark.skipif(not DEFAULT_ARTIFACT_PATH.is_file(), reason="saved model artifact is unavailable")
+@pytest.mark.parametrize("url", [
+    "https://www.ihub-tansa.jaxa.jp",
+    "https://classroom.google.com",
+])
+def test_real_explainer_api_propagates_ml_result_without_ti_providers(
+    monkeypatch: pytest.MonkeyPatch,
+    url: str,
+) -> None:
+    explainer = URLShapExplainer.from_artifact()
+    expected = explainer.explain_url(url)
+    service = AnalysisService(
+        explainer=explainer,
+        providers=[],
+        correlation_engine=CorrelationEngine(),
+    )
+
+    def deny_external(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("real-explainer API test attempted an external request")
+
+    monkeypatch.setattr(requests.sessions.Session, "request", deny_external)
+    with TestClient(create_app(analysis_service=service)) as client:
+        response = client.post("/api/v1/analyze", json={"url": url})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["url"] == url
+    assert body["ml"] == {
+        "prediction": expected["prediction"],
+        "phishing_probability": expected["phishing_probability"],
+        "threshold": expected["threshold"],
+        "positive_class": 1,
+    }
+    assert body["explanation"]["explained_class"] == 1
+    assert body["explanation"]["model_phishing_probability"] == expected["phishing_probability"]
+    assert body["correlation"]["status"] == "ml_only_no_ti_providers"
+    assert body["threat_intelligence"] == []
 
 
 @pytest.mark.parametrize("url", ["", "   ", "example.com", "ftp://example.com/file", "https:///no-host", "https://bad host/"])
